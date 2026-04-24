@@ -1,0 +1,87 @@
+# ============================================================
+# IR Annotation Pipeline — Phase 2: Geometry & Projection
+# ============================================================
+# Depends on Phase 1 outputs:
+#   depth_map              ← video_depth_estimation_mapper
+#   target_object_mask     ← video_object_segmenting_mapper
+#   contact_frame_idx      ← robot_contact_frame_mapper
+#   eef_trace_3d           ← robot_eef_trace_3d_mapper
+#
+# Outputs written to dataset fields:
+#   local_point_cloud      (N, 6)   [XYZ + RGB]
+#   object_bounding_box    [x1,y1,x2,y2]
+#   contact_point_2d       [u, v]
+#   contact_point_3d       [x, y, z]
+#   eef_trace_2d           (T, 2)
+#   deprojection_error_mm  float
+# ============================================================
+
+project_name: 'robot-ir-annotation-phase2-geometry'
+dataset_path: '/data/robot_dataset_phase1.jsonl'
+export_path:  '/data/robot_dataset_phase2.jsonl'
+
+np: 1
+
+process:
+
+  # ── 2A. Point Cloud Generation ──────────────────────────────
+  # Input:  video + depth_map (Phase 1) + camera_intrinsics
+  # Output: local_point_cloud  [N, 6]  (XYZ + RGB)
+  #         camera_pose        [4, 4]  per frame
+  # VGGT is more accurate than naive depth back-projection
+  # because it uses multi-view geometric reasoning.
+  # Used by: Phase 3 → robot_grasp_pose_mapper
+  #          Phase 3 → robot_placement_proposal_mapper
+  #          Phase 3 → robot_goal_pose_mapper
+  - vggt_mapper:
+      depth_field: 'depth_map'
+      output_pointcloud_field: 'local_point_cloud'
+      output_camera_pose_field: 'camera_pose'
+      max_points: 8192
+      mem_required: '16GB'
+
+  # ── 2B. Object Bounding Box ─────────────────────────────────
+  # Input:  video frames + language_instruction
+  # Output: object_bounding_box  [[x1,y1], [x2,y2]]  per frame
+  # Grounding DINO gives open-vocabulary boxes.
+  # Cheaper than full SAM2 — runs on all frames.
+  # Used by: Phase 3 → robot_affordance_box_mapper (refinement)
+  - image_segment_mapper:
+      text_prompt_field: 'task_object'
+      output_field: 'object_bounding_box'
+      model: 'IDEA-Research/grounding-dino-base'
+      box_threshold: 0.35
+      text_threshold: 0.25
+      mem_required: '4GB'
+
+  # ── 2C. Contact Point (2D + 3D) ─────────────────────────────
+  # Input:  contact_frame_idx (Phase 1)
+  #         cartesian_position (robot state, ground truth)
+  #         camera_intrinsics + camera_extrinsics
+  # Output: contact_point_2d  [u, v]   (projected from kinematics)
+  #         contact_point_3d  [x,y,z]  (directly from FK)
+  #         deprojection_error_mm  float
+  # CPU-only. Uses robot kinematics as ground truth — no vision.
+  # Used by: Phase 3 → robot_affordance_box_mapper
+  - robot_contact_point_mapper:
+      contact_frame_field: 'contact_frame_idx'
+      state_field: 'observation.cartesian_position'
+      camera_intrinsics_field: 'camera_intrinsics'
+      camera_extrinsics_field: 'camera_extrinsics'
+      depth_field: 'depth_map'
+      output_2d_field: 'contact_point_2d'
+      output_3d_field: 'contact_point_3d'
+      output_error_field: 'deprojection_error_mm'
+      mem_required: '0GB'
+
+  # ── 2D. EEF Trace Projection (3D → 2D) ──────────────────────
+  # Input:  eef_trace_3d (Phase 1) + camera_intrinsics/extrinsics
+  # Output: eef_trace_2d  [T, 2]  (pixel coordinates)
+  # CPU-only — pure matrix multiplication.
+  # Used by: downstream policy training (standalone IR)
+  - robot_eef_trace_2d_mapper:
+      trace_3d_field: 'eef_trace_3d'
+      camera_intrinsics_field: 'camera_intrinsics'
+      camera_extrinsics_field: 'camera_extrinsics'
+      output_field: 'eef_trace_2d'
+      mem_required: '0GB'

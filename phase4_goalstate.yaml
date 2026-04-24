@@ -1,0 +1,63 @@
+# ============================================================
+# IR Annotation Pipeline — Phase 4: Goal-State IR
+# ============================================================
+# Depends on Phase 3:
+#   goal_image             ← robot_goal_image_mapper
+#   grasp_pose_proposal    ← robot_grasp_pose_mapper
+#   depth_map              ← Phase 1
+#   target_object_mask     ← Phase 1
+#
+# Outputs:
+#   goal_pose              [x,y,z,rx,ry,rz,gripper]
+#   placement_proposal     [[x1,y1],[x2,y2]]
+#   placement_region       [[x1,y1],[x2,y2]]
+# ============================================================
+
+project_name: 'robot-ir-annotation-phase4-goalstate'
+dataset_path: '/data/robot_dataset_phase3.jsonl'
+export_path:  '/data/robot_dataset_phase4.jsonl'
+
+np: 1
+
+process:
+
+  # ── 4A. Goal Pose Estimation ─────────────────────────────────
+  # Input:  goal_image (P3) + depth_map (P1) + camera params
+  # Output: goal_pose  [x,y,z,rx,ry,rz,gripper_state]
+  # Uses 6-DoF pose estimation (FoundPose / GigaPose) on the
+  # target object visible in the goal image, then lifts to 3D
+  # using the depth map.
+  # Used by: standalone IR
+  - robot_goal_pose_mapper:
+      goal_image_field: 'goal_image'
+      depth_field: 'depth_map'
+      mask_field: 'target_object_mask'
+      camera_intrinsics_field: 'camera_intrinsics'
+      model: 'gigapose'
+      output_field: 'goal_pose'
+      mem_required: '8GB'
+
+  # ── 4B. Placement Proposal ───────────────────────────────────
+  # Input:  goal_image (P3) + depth_map (P1) + target_object_mask (P1)
+  # Output: placement_proposal  [[x1,y1],[x2,y2]]
+  # Segments the target object in the *goal* image to find
+  # where it should land — this is the placement bounding box.
+  - robot_placement_proposal_mapper:
+      goal_image_field: 'goal_image'
+      depth_field: 'depth_map'
+      instruction_field: 'language_instruction'
+      output_field: 'placement_proposal'
+      mem_required: '12GB'
+
+  # ── 4C. Placement Region (2D) ────────────────────────────────
+  # Input:  goal_image (P3) + language_instruction
+  # Output: placement_region  [[x1,y1],[x2,y2]]
+  # Similar to placement_proposal but uses open-vocabulary
+  # grounding on the goal image to find the *surface* the
+  # object should be placed on (e.g. "on the coaster").
+  - robot_placement_region_mapper:
+      goal_image_field: 'goal_image'
+      instruction_field: 'language_instruction'
+      model: 'IDEA-Research/grounding-dino-base'
+      output_field: 'placement_region'
+      mem_required: '4GB'

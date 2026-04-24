@@ -1,0 +1,96 @@
+# ============================================================
+# IR Annotation Pipeline — Phase 1: Foundation
+# ============================================================
+# No upstream dependencies. All ops in this phase read only
+# raw video + robot state (eef pose, gripper signal).
+# Phase 1 ops can run fully in parallel on multiple GPUs.
+#
+# Outputs written to dataset fields:
+#   depth_map              (H,W,1)
+#   target_object_mask     (H,W)
+#   instance_masks         (N,H,W)
+#   contact_frame_idx      int
+#   eef_trace_3d           (T,3)
+#   subtask_sequence       list[str]
+#   primitive_skills       list[str]
+# ============================================================
+
+project_name: 'robot-ir-annotation-phase1-foundation'
+dataset_path: '/data/robot_dataset'
+export_path:  '/data/robot_dataset_phase1.jsonl'
+
+np: 1   # 1 process per GPU node; scale with --ray for multi-node
+
+process:
+
+  # ── 1A. Depth Estimation ────────────────────────────────────
+  # Input:  video (RGB frames)
+  # Output: depth_map  [H, W, 1] per frame
+  # Used by: Phase 2 → vggt_mapper (point cloud)
+  #          Phase 3 → robot_grasp_pose_mapper
+  #          Phase 3 → robot_goal_pose_mapper
+  - video_depth_estimation_mapper:
+      model: 'depth-anything-v2-large'
+      output_field: 'depth_map'
+      frame_sampling_method: 'all'   # annotate every frame
+      mem_required: '8GB'
+
+  # ── 1B. Target Object Segmentation ──────────────────────────
+  # Input:  video + language_instruction (task_object extracted)
+  # Output: target_object_mask [H, W]  per frame
+  #         instance_masks     [N, H, W] per frame
+  # Used by: Phase 2 → image_segment_mapper (bounding box)
+  #          Phase 2 → robot_contact_point_mapper
+  #          Phase 3 → robot_affordance_box_mapper
+  #          Phase 3 → robot_grasp_pose_mapper
+  - video_object_segmenting_mapper:
+      text_prompt_field: 'task_object'   # extracted by upstream LLM parser
+      output_mask_field: 'target_object_mask'
+      output_instance_field: 'instance_masks'
+      confidence_threshold: 0.35
+      propagate_across_frames: true      # SAM2 video propagation
+      mem_required: '12GB'
+
+  # ── 1C. Contact Frame Detection ─────────────────────────────
+  # Input:  gripper_position signal (from robot state)
+  # Output: contact_frame_idx  int  (keyframe index)
+  #         contact_status     str per frame  (pre/in/post)
+  # CPU-only — pure signal processing, no vision model needed.
+  # Used by: Phase 2 → robot_contact_point_mapper
+  #          Phase 3 → robot_affordance_box_mapper
+  - robot_contact_frame_mapper:
+      gripper_field: 'observation.gripper_position'
+      closure_threshold: 0.8
+      stability_window: 5
+      output_contact_frame_field: 'contact_frame_idx'
+      output_contact_status_field: 'contact_status'
+      mem_required: '0GB'
+
+  # ── 1D. EEF Trace (3D) ──────────────────────────────────────
+  # Input:  cartesian_position (eef pose from robot state)
+  # Output: eef_trace_3d  [T, 3]  (future trajectory from each frame)
+  #         eef_trace_raw [T, 6]  (full pose including orientation)
+  # CPU-only — direct read from robot kinematics.
+  # Used by: Phase 2 → robot_eef_trace_2d_mapper  (needs camera K)
+  #          Phase 3 → robot_motion_trace_mapper
+  - robot_eef_trace_3d_mapper:
+      state_field: 'observation.cartesian_position'
+      window_future: 20          # frames ahead to include
+      window_past:   10
+      smoothing: 'savgol'        # Savitzky-Golay filter
+      output_field: 'eef_trace_3d'
+      mem_required: '0GB'
+
+  # ── 1E. Semantic Decomposition ──────────────────────────────
+  # Input:  video chunk + language_instruction
+  # Output: subtask_sequence  list[str]
+  #         primitive_skills  list[str]
+  # Expensive VLM call — run on sampled keyframes only.
+  # Used by: Phase 4 → no downstream dep, standalone IR
+  - robot_subtask_decomp_mapper:
+      vlm_model: 'Qwen/Qwen2.5-VL-7B-Instruct'
+      instruction_field: 'language_instruction'
+      output_subtask_field: 'subtask_sequence'
+      output_primitive_field: 'primitive_skills'
+      frame_sampling_method: 'keyframe'
+      mem_required: '20GB'

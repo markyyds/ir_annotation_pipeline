@@ -1,0 +1,96 @@
+# ============================================================
+# IR Annotation Pipeline — Phase 3: Composite IR Generation
+# ============================================================
+# Depends on Phase 1 + Phase 2 outputs:
+#   target_object_mask     ← Phase 1
+#   contact_point_2d/3d   ← Phase 2
+#   local_point_cloud      ← Phase 2
+#   object_bounding_box    ← Phase 2
+#   eef_trace_3d           ← Phase 1
+#
+# Outputs:
+#   affordance_box         [[x1,y1],[x2,y2]]
+#   grasp_pose_proposal    [x,y,z,rx,ry,rz,gripper]
+#   motion_trace           [T,2] or [T,3]
+#   keypoints              [K,2]
+#   goal_image             [H,W,3]
+# ============================================================
+
+project_name: 'robot-ir-annotation-phase3-composite'
+dataset_path: '/data/robot_dataset_phase2.jsonl'
+export_path:  '/data/robot_dataset_phase3.jsonl'
+
+np: 1
+
+process:
+
+  # ── 3A. Affordance Box ──────────────────────────────────────
+  # Input:  target_object_mask (P1) + contact_point_2d (P2)
+  # Output: affordance_box  [[x1,y1],[x2,y2]]
+  # Strategy: crop mask to contact-centric region, then
+  # compute tight bbox. More precise than full-object bbox.
+  # Used by: standalone IR (no downstream in this pipeline)
+  - robot_affordance_box_mapper:
+      mask_field: 'target_object_mask'
+      contact_point_field: 'contact_point_2d'
+      crop_radius_px: 48
+      output_field: 'affordance_box'
+      mem_required: '0GB'
+
+  # ── 3B. Grasp Pose Proposal ─────────────────────────────────
+  # Input:  local_point_cloud (P2) + target_object_mask (P1)
+  # Output: grasp_pose_proposal  [x,y,z,rx,ry,rz,gripper_width]
+  # Uses GraspNet or AnyGrasp to score candidate grasps on
+  # the masked point cloud region.
+  # Used by: Phase 4 → robot_placement_proposal_mapper
+  - robot_grasp_pose_mapper:
+      pointcloud_field: 'local_point_cloud'
+      mask_field: 'target_object_mask'
+      model: 'graspnet-baseline'
+      top_k: 5
+      output_field: 'grasp_pose_proposal'
+      mem_required: '6GB'
+
+  # ── 3C. Motion Trace ────────────────────────────────────────
+  # Input:  eef_trace_3d (P1) + camera_intrinsics/extrinsics
+  # Output: motion_trace  [T,2] 2D overlay on image
+  # Combines eef_trace_2d with visual rendering — draws
+  # the trajectory as an RGB overlay for VLM training.
+  # Used by: standalone IR
+  - robot_motion_trace_mapper:
+      trace_3d_field: 'eef_trace_3d'
+      trace_2d_field: 'eef_trace_2d'
+      camera_intrinsics_field: 'camera_intrinsics'
+      output_trace_field: 'motion_trace'
+      output_overlay_field: 'motion_trace_overlay'  # RGB image
+      line_thickness: 2
+      color: [0, 255, 0]
+      mem_required: '0GB'
+
+  # ── 3D. Keypoint Detection ───────────────────────────────────
+  # Input:  video + target_object_mask (P1)
+  # Output: keypoints  [K, 2]  (functional + structural keypoints)
+  # Uses FunctionalKeypoints or SAM-based skeleton extraction
+  # on the masked object region.
+  # Used by: standalone IR
+  - robot_keypoint_mapper:
+      mask_field: 'target_object_mask'
+      method: 'skeleton'          # or 'functional' for semantic kps
+      num_keypoints: 8
+      output_field: 'keypoints'
+      mem_required: '4GB'
+
+  # ── 3E. Goal Image Generation ────────────────────────────────
+  # Input:  current RGB frame + language_instruction
+  # Output: goal_image  [H, W, 3]
+  # Uses an instruction-conditioned world model (e.g. UniSim,
+  # or a fine-tuned diffusion model) to hallucinate goal state.
+  # Most expensive op in the pipeline — run on keyframes only.
+  # Used by: Phase 4 → robot_goal_pose_mapper
+  #          Phase 4 → robot_placement_region_mapper
+  - robot_goal_image_mapper:
+      instruction_field: 'language_instruction'
+      model: 'robot-world-model-v1'
+      frame_sampling_method: 'first_frame'  # generate from initial obs
+      output_field: 'goal_image'
+      mem_required: '24GB'
