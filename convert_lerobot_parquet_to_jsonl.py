@@ -115,12 +115,19 @@ def find_video_path(
     if video_template:
         return format_video_from_template(video_template, parquet_path, row, episode_id)
 
+    if input_root.is_dir():
+        videos_root = video_root if video_root else input_root / "videos"
+        default_lerobot_video = (
+            videos_root
+            / parquet_path.parent.name
+            / "observation.images.primary"
+            / f"{parquet_path.stem}.mp4"
+        )
+        return default_lerobot_video
+
     candidate_roots = []
     if video_root:
         candidate_roots.append(video_root)
-    if input_root.is_dir():
-        candidate_roots.append(input_root / "videos")
-        candidate_roots.append(input_root)
 
     same_dir_video = parquet_path.with_suffix(".mp4")
     if same_dir_video.exists():
@@ -198,7 +205,10 @@ def parse_args() -> argparse.Namespace:
         "--video-root",
         type=Path,
         default=None,
-        help="Directory to search recursively for matching episode_*.mp4 files.",
+        help=(
+            "Videos root. Default: input-root/videos. The default layout is "
+            "VIDEO_ROOT/chunk-000/observation.images.primary/episode_*.mp4."
+        ),
     )
     parser.add_argument(
         "--video-template",
