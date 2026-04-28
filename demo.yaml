@@ -1,0 +1,28 @@
+# Demo config for grounding the manipulated target object in DROID-style videos.
+
+project_name: 'video-target-object-grounding-vlm-demo'
+
+# Run from the Data-Juicer repo root:
+#   dj-process --config demos/video_target_object_grounding_vlm/demo.yaml
+dataset_path: './demos/video_target_object_grounding_vlm/dataset.jsonl'
+export_path: './outputs/video-target-object-grounding-vlm/processed.jsonl'
+
+# GPU/VLM inference is memory heavy; keep one worker unless you shard manually.
+np: 1
+
+# Keep Data-Juicer's default text key. The operator reads the robotic
+# instruction from `language_instruction` below.
+text_keys: 'text'
+
+process:
+  - video_target_object_grounding_vlm_mapper:
+      # Replace this with your local/open-source Qwen-VL checkpoint if needed.
+      api_or_hf_model: 'Qwen/Qwen3-VL-8B-Instruct'
+      enable_vllm: true
+      instruction_key: 'language_instruction'
+      tag_field_name: 'video_target_object_grounding'
+      keep_frame_path: false
+      sampling_params:
+        temperature: 0
+        top_p: 1.0
+        max_tokens: 512

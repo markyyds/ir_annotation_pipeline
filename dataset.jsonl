@@ -1,0 +1,2 @@
+{"videos":["./demos/video_target_object_grounding_vlm/data/droid_example_0001.mp4"],"text":"<__dj__video> pick up the red cup and place it in the bowl","language_instruction":"pick up the red cup and place it in the bowl","episode_id":"droid_example_0001"}
+{"videos":["./demos/video_target_object_grounding_vlm/data/droid_example_0002.mp4"],"text":"<__dj__video> move the yellow sponge to the left side of the sink","language_instruction":"move the yellow sponge to the left side of the sink","episode_id":"droid_example_0002"}
