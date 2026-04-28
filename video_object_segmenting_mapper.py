@@ -25,7 +25,7 @@ torch = LazyLoader("torch")
 @OPERATORS.register_module(OP_NAME)
 @LOADED_VIDEOS.register_module(OP_NAME)
 class VideoObjectSegmentingMapper(Mapper):
-    """Text-guided semantic segmentation of valid objects throughout the video (YOLOE + SAM2)."""
+    """Text-guided target-object tracking with first-frame YOLOE and SAM2 propagation."""
 
     _accelerator = "cuda"
 
@@ -88,7 +88,8 @@ class VideoObjectSegmentingMapper(Mapper):
             "cls_id_dict": [],
             "object_cls_list": [],
             "yoloe_conf_list": [],
-            "yoloe_bbox_list": [],
+            "first_frame_yoloe_bbox_list": [],
+            "target_object_bbox_list": [],
         }
 
     def _build_result(
@@ -96,16 +97,41 @@ class VideoObjectSegmentingMapper(Mapper):
         cls_id_list,
         object_cls_list,
         yoloe_conf_list,
-        yoloe_bbox_list,
+        first_frame_yoloe_bbox_list,
+        target_object_bbox_list,
         segment_data=None,
     ) -> dict[str, Any]:
         result = self._empty_result()
         result["cls_id_dict"] = cls_id_list
         result["object_cls_list"] = object_cls_list
         result["yoloe_conf_list"] = yoloe_conf_list
-        result["yoloe_bbox_list"] = yoloe_bbox_list
+        result["first_frame_yoloe_bbox_list"] = first_frame_yoloe_bbox_list
+        result["target_object_bbox_list"] = target_object_bbox_list
         result["segment_data"] = segment_data if self.if_return_segment_data else None
         return result
+
+    def _mask_to_bbox(self, mask):
+        mask = np.squeeze(np.array(mask))
+        if mask.size == 0:
+            return None
+
+        mask = mask.astype(bool)
+        if not np.any(mask):
+            return None
+
+        ys, xs = np.where(mask)
+        x1 = int(xs.min())
+        y1 = int(ys.min())
+        x2 = int(xs.max())
+        y2 = int(ys.max())
+        return [x1, y1, x2, y2]
+
+    def _segments_to_bbox_list(self, video_segments):
+        # Shape: [num_frames][num_objects] -> bbox or None
+        frame_bbox_list = []
+        for frame_masks in video_segments:
+            frame_bbox_list.append([self._mask_to_bbox(mask) for mask in frame_masks])
+        return frame_bbox_list
 
     def process_single(self, sample=None, rank=None):
 
@@ -124,7 +150,7 @@ class VideoObjectSegmentingMapper(Mapper):
             use_cuda=self.use_cuda(),
         )
 
-        # Perform semantic segmentation on the first frame using YOLOE
+        # Detect target objects on the first frame with YOLOE, then track them with SAM2.
         videoCapture = cv2.VideoCapture(sample[self.video_key][0])
         success, initial_frame = videoCapture.read()
         random_num_str = str(random.randint(10000, 99999))
@@ -157,7 +183,7 @@ class VideoObjectSegmentingMapper(Mapper):
         results = yoloe_model.predict(temp_initial_frame_path, verbose=False, conf=self.yoloe_conf)
 
         yoloe_bboxes = results[0].boxes.xyxy.tolist()
-        yoloe_bbox_list = [[int(x) for x in box] for box in yoloe_bboxes]
+        initial_yoloe_bbox_list = [[int(x) for x in box] for box in yoloe_bboxes]
         bboxes_cls = [int(x) for x in results[0].boxes.cls.tolist()]
         cls_id_dict = results[0].names
         yoloe_conf_list = results[0].boxes.conf.tolist()
@@ -180,17 +206,6 @@ class VideoObjectSegmentingMapper(Mapper):
 
         if len(obj_ids) == 0:
             sample[Fields.meta][self.tag_field_name] = self._empty_result()
-            return sample
-
-        # Only need YOLOE results, skip SAM2 entirely.
-        if not self.if_return_segment_data and not self.if_save_visualization:
-            sample[Fields.meta][self.tag_field_name] = self._build_result(
-                cls_id_list=cls_id_list,
-                object_cls_list=object_cls_list,
-                yoloe_conf_list=yoloe_conf_list,
-                yoloe_bbox_list=yoloe_bbox_list,
-                segment_data=None,
-            )
             return sample
 
         # Track objects with SAM2
@@ -240,11 +255,18 @@ class VideoObjectSegmentingMapper(Mapper):
                 [video_res_masks[i].tolist() for i, obj_id in enumerate(inference_session.obj_ids)]
             )
 
+        target_object_bbox_list = self._segments_to_bbox_list(video_segments)
+
+        # Preserve the original detector boxes on frame 0, then use SAM2-derived boxes for later frames.
+        if target_object_bbox_list:
+            target_object_bbox_list[0] = initial_yoloe_bbox_list
+
         sample[Fields.meta][self.tag_field_name] = self._build_result(
             cls_id_list=cls_id_list,
             object_cls_list=object_cls_list,
             yoloe_conf_list=yoloe_conf_list,
-            yoloe_bbox_list=yoloe_bbox_list,
+            first_frame_yoloe_bbox_list=initial_yoloe_bbox_list,
+            target_object_bbox_list=target_object_bbox_list,
             segment_data=video_segments,
         )
 
