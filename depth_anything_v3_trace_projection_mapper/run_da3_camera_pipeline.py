@@ -68,14 +68,27 @@ def ffmpeg_reader(video_path: Path):
 def extract_sampled_frames(
     video_path: Path,
     frames_dir: Path,
-    frame_stride: int,
-    max_frames: int | None,
+    sampling_mode: str,
+    num_uniform_frames: int,
 ) -> tuple[list[int], list[Path], dict[str, Any]]:
     video_info = probe_video(video_path)
     frames_dir.mkdir(parents=True, exist_ok=True)
     width = video_info["width"]
     height = video_info["height"]
     frame_size = width * height * 3
+    total_frames = video_info["frame_count"]
+    if sampling_mode == "first_frame":
+        target_indices = {0}
+    elif sampling_mode == "uniform":
+        if num_uniform_frames <= 0:
+            raise ValueError("--num-uniform-frames must be positive")
+        if total_frames is None:
+            raise ValueError("ffprobe did not report nb_frames, so uniform sampling is unavailable")
+        count = min(num_uniform_frames, total_frames)
+        target_indices = set(np.linspace(0, total_frames - 1, count, dtype=int).tolist())
+    else:
+        raise ValueError(f"Unsupported sampling mode: {sampling_mode}")
+
     reader = ffmpeg_reader(video_path)
     assert reader.stdout is not None
 
@@ -89,15 +102,14 @@ def extract_sampled_frames(
                 break
             if len(raw) != frame_size:
                 raise RuntimeError(f"Partial raw frame while reading {video_path}")
-            should_keep = frame_idx % frame_stride == 0
-            if max_frames is not None and len(frame_indices) >= max_frames:
-                should_keep = False
-            if should_keep:
+            if frame_idx in target_indices:
                 image = Image.frombytes("RGB", (width, height), raw)
                 frame_path = frames_dir / f"frame_{frame_idx:06d}.jpg"
                 image.save(frame_path, quality=95)
                 frame_indices.append(frame_idx)
                 frame_paths.append(frame_path)
+                if len(frame_indices) == len(target_indices):
+                    break
             frame_idx += 1
     finally:
         reader.stdout.close()
@@ -151,6 +163,8 @@ def save_prediction(
     prediction: dict[str, Any],
     model_id: str,
     device: str,
+    sampling_mode: str,
+    num_uniform_frames: int,
     save_depth: bool,
 ) -> None:
     episode_dir = output_dir / episode_id
@@ -184,6 +198,8 @@ def save_prediction(
         "episode_id": episode_id,
         "model_id": model_id,
         "device": device,
+        "sampling_mode": sampling_mode,
+        "num_uniform_frames": num_uniform_frames if sampling_mode == "uniform" else None,
         "video_info": video_info,
         "frame_indices": frame_indices,
         "frames": [str(path) for path in frame_paths],
@@ -207,10 +223,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test-data", type=Path, default=DEFAULT_TEST_DATA)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--pattern", default="episode_*.mp4")
-    parser.add_argument("--model-id", default="depth-anything/Depth-Anything-3-Large")
+    parser.add_argument("--model-id", default="depth-anything/da3-large")
     parser.add_argument("--device", default="auto", choices=("auto", "cpu", "cuda", "mps"))
-    parser.add_argument("--frame-stride", type=int, default=1)
-    parser.add_argument("--max-frames", type=int, default=None)
+    parser.add_argument(
+        "--sampling-mode",
+        choices=("first_frame", "uniform"),
+        default="uniform",
+        help="DA3 input frame selection strategy. Default: uniform.",
+    )
+    parser.add_argument(
+        "--num-uniform-frames",
+        type=int,
+        default=32,
+        help="Number of frames for --sampling-mode uniform. Ignored for first_frame.",
+    )
     parser.add_argument("--process-res", type=int, default=504)
     parser.add_argument("--process-res-method", default="upper_bound")
     parser.add_argument("--save-depth", action="store_true")
@@ -220,8 +246,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.frame_stride <= 0:
-        raise ValueError("--frame-stride must be positive")
+    if args.num_uniform_frames <= 0:
+        raise ValueError("--num-uniform-frames must be positive")
 
     require_ffmpeg()
     videos = sorted(args.test_data.glob(args.pattern))
@@ -242,8 +268,8 @@ def main() -> None:
         frame_indices, frame_paths, video_info = extract_sampled_frames(
             video_path=video_path,
             frames_dir=frames_dir,
-            frame_stride=args.frame_stride,
-            max_frames=args.max_frames,
+            sampling_mode=args.sampling_mode,
+            num_uniform_frames=args.num_uniform_frames,
         )
         print(f"[{episode_id}] running DA3 on {len(frame_paths)} frames")
         prediction = model.inference(
@@ -260,6 +286,8 @@ def main() -> None:
             prediction=prediction,
             model_id=args.model_id,
             device=device,
+            sampling_mode=args.sampling_mode,
+            num_uniform_frames=args.num_uniform_frames,
             save_depth=args.save_depth,
         )
         print(f"[{episode_id}] wrote {episode_dir / 'da3_camera_parameters.npz'}")
