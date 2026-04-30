@@ -1,8 +1,34 @@
 uv run python - <<'PY'
 import torch
-import vllm
 print("torch:", torch.__version__)
-print("cuda:", torch.version.cuda)
-print("vllm:", vllm.__version__)
-print("gpu count:", torch.cuda.device_count())
+print("torch cuda:", torch.version.cuda)
+try:
+    import vllm
+    print("vllm:", vllm.__version__)
+except Exception as e:
+    print("vllm import error:", repr(e))
 PY
+
+uv pip uninstall -y vllm torch torchvision torchaudio
+rm -rf .venv/lib/python3.12/site-packages/vllm*
+rm -rf .venv/lib/python3.12/site-packages/torch*
+rm -rf .venv/lib/python3.12/site-packages/torchvision*
+rm -rf .venv/lib/python3.12/site-packages/torchaudio*
+uv cache clean
+
+uv pip install torch torchvision torchaudio \
+  --index-url https://download.pytorch.org/whl/cu128 \
+  --no-cache
+
+uv pip install vllm \
+  --extra-index-url https://wheels.vllm.ai/nightly \
+  --no-cache
+
+uv run python - <<'PY'
+import torch
+print("torch:", torch.__version__)
+print("torch cuda:", torch.version.cuda)
+import vllm
+print("vllm:", vllm.__version__)
+PY
+
