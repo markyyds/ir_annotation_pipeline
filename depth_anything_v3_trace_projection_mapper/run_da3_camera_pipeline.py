@@ -116,13 +116,29 @@ def load_da3_model(model_id: str, device: str):
     return model, device
 
 
-def as_array(prediction: dict[str, Any], key: str) -> np.ndarray | None:
-    value = prediction.get(key)
+def prediction_value(prediction: Any, key: str) -> Any:
+    if isinstance(prediction, dict):
+        return prediction.get(key)
+    return getattr(prediction, key, None)
+
+
+def as_array(prediction: Any, key: str) -> np.ndarray | None:
+    value = prediction_value(prediction, key)
     if value is None:
         return None
     if hasattr(value, "detach"):
         value = value.detach().cpu().numpy()
     return np.asarray(value)
+
+
+def prediction_keys(prediction: Any) -> list[str]:
+    if isinstance(prediction, dict):
+        return sorted(str(key) for key in prediction.keys())
+    if hasattr(prediction, "__dataclass_fields__"):
+        return sorted(prediction.__dataclass_fields__.keys())
+    if hasattr(prediction, "__dict__"):
+        return sorted(key for key in prediction.__dict__.keys() if not key.startswith("_"))
+    return []
 
 
 def save_prediction(
@@ -131,7 +147,7 @@ def save_prediction(
     frame_indices: list[int],
     frame_paths: list[Path],
     video_info: dict[str, Any],
-    prediction: dict[str, Any],
+    prediction: Any,
     model_id: str,
     device: str,
     sampling_mode: str,
@@ -144,7 +160,10 @@ def save_prediction(
     intrinsics = as_array(prediction, "intrinsics")
     extrinsics = as_array(prediction, "extrinsics")
     if intrinsics is None or extrinsics is None:
-        raise KeyError("DA3 prediction did not include both 'intrinsics' and 'extrinsics'")
+        raise KeyError(
+            "DA3 prediction did not include both 'intrinsics' and 'extrinsics'. "
+            f"Available fields: {prediction_keys(prediction)}"
+        )
 
     arrays = {
         "frame_indices": np.asarray(frame_indices, dtype=np.int64),
@@ -211,8 +230,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--process-res", type=int, default=504)
     parser.add_argument(
         "--process-res-method",
-        choices=("upper_bound_resize", "upper_bound_crop", "lower_bound_resize", "lower_bound_crop"),
+        choices=(
+            "upper_bound",
+            "lower_bound",
+            "upper_bound_resize",
+            "upper_bound_crop",
+            "lower_bound_resize",
+            "lower_bound_crop",
+        ),
         default="upper_bound_resize",
+        help=(
+            "DA3 resize method. Legacy aliases upper_bound/lower_bound are mapped "
+            "to upper_bound_resize/lower_bound_resize."
+        ),
     )
     parser.add_argument("--save-depth", action="store_true")
     parser.add_argument("--overwrite-frames", action="store_true")
@@ -221,6 +251,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    resize_aliases = {
+        "upper_bound": "upper_bound_resize",
+        "lower_bound": "lower_bound_resize",
+    }
+    args.process_res_method = resize_aliases.get(args.process_res_method, args.process_res_method)
     if args.num_uniform_frames <= 0:
         raise ValueError("--num-uniform-frames must be positive")
 
@@ -246,6 +281,7 @@ def main() -> None:
             num_uniform_frames=args.num_uniform_frames,
         )
         print(f"[{episode_id}] running DA3 on {len(frame_paths)} frames")
+        print(f"[{episode_id}] process_res_method={args.process_res_method}")
         prediction = model.inference(
             [str(path) for path in frame_paths],
             process_res=args.process_res,
