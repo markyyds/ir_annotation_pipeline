@@ -209,7 +209,11 @@ def parse_args() -> argparse.Namespace:
         help="Number of frames for --sampling-mode uniform. Ignored for first_frame.",
     )
     parser.add_argument("--process-res", type=int, default=504)
-    parser.add_argument("--process-res-method", default="upper_bound")
+    parser.add_argument(
+        "--process-res-method",
+        choices=("upper_bound_resize", "upper_bound_crop", "lower_bound_resize", "lower_bound_crop"),
+        default="upper_bound_resize",
+    )
     parser.add_argument("--save-depth", action="store_true")
     parser.add_argument("--overwrite-frames", action="store_true")
     return parser.parse_args()
