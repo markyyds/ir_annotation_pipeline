@@ -1,0 +1,8 @@
+uv run python - <<'PY'
+import torch
+import vllm
+print("torch:", torch.__version__)
+print("cuda:", torch.version.cuda)
+print("vllm:", vllm.__version__)
+print("gpu count:", torch.cuda.device_count())
+PY
