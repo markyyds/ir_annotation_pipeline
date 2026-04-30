@@ -6,11 +6,11 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+import imageio.v2 as imageio
 import numpy as np
 from PIL import Image
 
@@ -21,48 +21,47 @@ DEFAULT_TEST_DATA = PROJECT_ROOT / "test_data"
 DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "da3_camera_outputs"
 
 
-def require_ffmpeg() -> None:
-    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
-        raise RuntimeError("This script needs ffmpeg and ffprobe on PATH.")
+def open_video_reader(video_path: Path):
+    try:
+        return imageio.get_reader(str(video_path))
+    except ValueError as exc:
+        raise RuntimeError(
+            "Could not open video with imageio. Install the ffmpeg backend with: "
+            "python -m pip install 'imageio[ffmpeg]'"
+        ) from exc
 
 
-def probe_video(video_path: Path) -> dict[str, Any]:
-    cmd = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-select_streams",
-        "v:0",
-        "-show_entries",
-        "stream=width,height,nb_frames,r_frame_rate",
-        "-of",
-        "json",
-        str(video_path),
-    ]
-    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-    stream = json.loads(result.stdout)["streams"][0]
+def get_video_info(reader) -> dict[str, Any]:
+    metadata = reader.get_meta_data()
+    size = metadata.get("size")
+    if size:
+        width, height = size
+    else:
+        first_frame = reader.get_data(0)
+        height, width = first_frame.shape[:2]
+
+    frame_count = metadata.get("nframes")
+    if frame_count is None or frame_count == float("inf"):
+        frame_count = reader.count_frames()
+
+    fps = metadata.get("fps")
     return {
-        "width": int(stream["width"]),
-        "height": int(stream["height"]),
-        "frame_count": int(stream["nb_frames"]) if str(stream.get("nb_frames", "")).isdigit() else None,
-        "fps": stream.get("r_frame_rate", "30/1"),
+        "width": int(width),
+        "height": int(height),
+        "frame_count": int(frame_count),
+        "fps": float(fps) if fps is not None else None,
     }
 
 
-def ffmpeg_reader(video_path: Path):
-    cmd = [
-        "ffmpeg",
-        "-v",
-        "error",
-        "-i",
-        str(video_path),
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgb24",
-        "pipe:1",
-    ]
-    return subprocess.Popen(cmd, stdout=subprocess.PIPE)
+def choose_frame_indices(total_frames: int, sampling_mode: str, num_uniform_frames: int) -> list[int]:
+    if sampling_mode == "first_frame":
+        return [0]
+    if sampling_mode == "uniform":
+        if num_uniform_frames <= 0:
+            raise ValueError("--num-uniform-frames must be positive")
+        count = min(num_uniform_frames, total_frames)
+        return sorted(set(np.linspace(0, total_frames - 1, count, dtype=int).tolist()))
+    raise ValueError(f"Unsupported sampling mode: {sampling_mode}")
 
 
 def extract_sampled_frames(
@@ -71,54 +70,26 @@ def extract_sampled_frames(
     sampling_mode: str,
     num_uniform_frames: int,
 ) -> tuple[list[int], list[Path], dict[str, Any]]:
-    video_info = probe_video(video_path)
     frames_dir.mkdir(parents=True, exist_ok=True)
-    width = video_info["width"]
-    height = video_info["height"]
-    frame_size = width * height * 3
-    total_frames = video_info["frame_count"]
-    if sampling_mode == "first_frame":
-        target_indices = {0}
-    elif sampling_mode == "uniform":
-        if num_uniform_frames <= 0:
-            raise ValueError("--num-uniform-frames must be positive")
-        if total_frames is None:
-            raise ValueError("ffprobe did not report nb_frames, so uniform sampling is unavailable")
-        count = min(num_uniform_frames, total_frames)
-        target_indices = set(np.linspace(0, total_frames - 1, count, dtype=int).tolist())
-    else:
-        raise ValueError(f"Unsupported sampling mode: {sampling_mode}")
+    for old_frame in frames_dir.glob("frame_*.jpg"):
+        old_frame.unlink()
 
-    reader = ffmpeg_reader(video_path)
-    assert reader.stdout is not None
-
-    frame_indices = []
-    frame_paths = []
-    frame_idx = 0
+    reader = open_video_reader(video_path)
     try:
-        while True:
-            raw = reader.stdout.read(frame_size)
-            if not raw:
-                break
-            if len(raw) != frame_size:
-                raise RuntimeError(f"Partial raw frame while reading {video_path}")
-            if frame_idx in target_indices:
-                image = Image.frombytes("RGB", (width, height), raw)
-                frame_path = frames_dir / f"frame_{frame_idx:06d}.jpg"
-                image.save(frame_path, quality=95)
-                frame_indices.append(frame_idx)
-                frame_paths.append(frame_path)
-                if len(frame_indices) == len(target_indices):
-                    break
-            frame_idx += 1
+        video_info = get_video_info(reader)
+        frame_indices = choose_frame_indices(
+            video_info["frame_count"],
+            sampling_mode=sampling_mode,
+            num_uniform_frames=num_uniform_frames,
+        )
+        frame_paths = []
+        for frame_idx in frame_indices:
+            frame_path = frames_dir / f"frame_{frame_idx:06d}.jpg"
+            Image.fromarray(reader.get_data(frame_idx)).convert("RGB").save(frame_path, quality=95)
+            frame_paths.append(frame_path)
     finally:
-        reader.stdout.close()
-        reader.wait()
+        reader.close()
 
-    if reader.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed while reading {video_path}")
-    if not frame_paths:
-        raise RuntimeError(f"No frames extracted from {video_path}")
     return frame_indices, frame_paths, video_info
 
 
@@ -228,7 +199,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sampling-mode",
         choices=("first_frame", "uniform"),
-        default="uniform",
+        default="first_frame",
         help="DA3 input frame selection strategy. Default: uniform.",
     )
     parser.add_argument(
@@ -249,7 +220,6 @@ def main() -> None:
     if args.num_uniform_frames <= 0:
         raise ValueError("--num-uniform-frames must be positive")
 
-    require_ffmpeg()
     videos = sorted(args.test_data.glob(args.pattern))
     if not videos:
         raise FileNotFoundError(f"No videos matched {args.test_data / args.pattern}")
