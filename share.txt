@@ -32,3 +32,10 @@ import vllm
 print("vllm:", vllm.__version__)
 PY
 
+uv pip install modelscope
+
+SOURCE=modelscope \
+MODEL_ID=Qwen/Qwen3.5-35B-A3B \
+LOCAL_DIR=/mnt/workspace/models/Qwen3.5-35B-A3B \
+video_subtask_instruction_mapper/download_qwen35_model.sh
+
