@@ -39,3 +39,21 @@ MODEL_ID=Qwen/Qwen3.5-35B-A3B \
 LOCAL_DIR=/mnt/workspace/models/Qwen3.5-35B-A3B \
 video_subtask_instruction_mapper/download_qwen35_model.sh
 
+python video_subtask_instruction_mapper/check_vllm_server.py \
+  --base-url http://localhost:8000/v1
+
+video_subtask_instruction_mapper/run_generate.sh \
+  --use-vlm \
+  --vlm-backend openai \
+  --vlm-base-url http://localhost:8000/v1 \
+  --vlm-model Qwen/Qwen3.5-35B-A3B \
+  --vlm-frame-samples 8 \
+  --pattern episode_000000.parquet
+
+video_subtask_instruction_mapper/run_generate.sh \
+  --use-vlm \
+  --vlm-backend openai \
+  --vlm-base-url http://localhost:8000/v1 \
+  --vlm-model Qwen/Qwen3.5-35B-A3B \
+  --vlm-frame-samples 12
+
