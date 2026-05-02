@@ -220,6 +220,17 @@ def encode_image_data_url(path: Path) -> str:
     return f"data:{mime};base64,{data}"
 
 
+def assistant_text(response: dict[str, Any]) -> str:
+    message = response["choices"][0]["message"]
+    content = message.get("content")
+    if content:
+        return str(content)
+    reasoning = message.get("reasoning")
+    if reasoning:
+        return str(reasoning)
+    return ""
+
+
 def build_planning_prompt(
     task_instruction: str,
     sampled_frames: list[tuple[int, Path]],
@@ -247,55 +258,8 @@ def build_planning_prompt(
     )
 
 
-class QwenTransformersSubtaskPlanner:
-    """Local Transformers planner for Qwen2.5-style VLMs."""
-
-    def __init__(self, model_id: str, device: str, max_new_tokens: int):
-        import torch
-        from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
-
-        self.torch = torch
-        self.processor = AutoProcessor.from_pretrained(model_id)
-        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            model_id,
-            torch_dtype=torch.bfloat16 if device != "cpu" else torch.float32,
-            device_map=device if device != "auto" else "auto",
-        )
-        self.max_new_tokens = max_new_tokens
-
-    def plan(
-        self,
-        task_instruction: str,
-        sampled_frames: list[tuple[int, Path]],
-        first_frame: int,
-        last_frame: int,
-    ) -> list[dict[str, Any]]:
-        content = [
-            {
-                "type": "text",
-                "text": build_planning_prompt(task_instruction, sampled_frames, first_frame, last_frame),
-            }
-        ]
-        content.extend({"type": "image", "path": str(path)} for _, path in sampled_frames)
-        messages = [{"role": "user", "content": content}]
-        inputs = self.processor.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-        ).to(self.model.device)
-        with self.torch.no_grad():
-            generated = self.model.generate(**inputs, max_new_tokens=self.max_new_tokens)
-        generated = [output_ids[len(input_ids) :] for input_ids, output_ids in zip(inputs.input_ids, generated)]
-        output_text = self.processor.batch_decode(generated, skip_special_tokens=True)[0]
-        parsed = extract_json_object(output_text)
-        segments = parsed.get("subtask_segments", [])
-        return segments if isinstance(segments, list) else []
-
-
-class OpenAICompatibleSubtaskPlanner:
-    """Planner for a local vLLM/SGLang OpenAI-compatible VLM endpoint."""
+class VLLMSubtaskPlanner:
+    """Planner for a local vLLM OpenAI-compatible VLM endpoint."""
 
     def __init__(
         self,
@@ -333,7 +297,7 @@ class OpenAICompatibleSubtaskPlanner:
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"VLM API request failed with HTTP {exc.code}: {body}") from exc
-        return data["choices"][0]["message"].get("content") or ""
+        return assistant_text(data)
 
     def plan(
         self,
@@ -361,24 +325,15 @@ class OpenAICompatibleSubtaskPlanner:
         return segments if isinstance(segments, list) else []
 
 
-SubtaskPlanner = QwenTransformersSubtaskPlanner | OpenAICompatibleSubtaskPlanner
-
-
-def maybe_make_vlm(args: argparse.Namespace) -> SubtaskPlanner | None:
+def maybe_make_vlm(args: argparse.Namespace) -> VLLMSubtaskPlanner | None:
     if not args.use_vlm:
         return None
-    if args.vlm_backend == "openai":
-        return OpenAICompatibleSubtaskPlanner(
-            model_id=args.vlm_model,
-            base_url=args.vlm_base_url,
-            api_key=args.vlm_api_key,
-            max_tokens=args.vlm_max_new_tokens,
-            temperature=args.vlm_temperature,
-        )
-    return QwenTransformersSubtaskPlanner(
+    return VLLMSubtaskPlanner(
         model_id=args.vlm_model,
-        device=args.vlm_device,
-        max_new_tokens=args.vlm_max_new_tokens,
+        base_url=args.vlm_base_url,
+        api_key=args.vlm_api_key,
+        max_tokens=args.vlm_max_new_tokens,
+        temperature=args.vlm_temperature,
     )
 
 
@@ -387,7 +342,7 @@ def process_episode(
     parquet_path: Path,
     output_dir: Path,
     args: argparse.Namespace,
-    vlm: SubtaskPlanner | None,
+    vlm: VLLMSubtaskPlanner | None,
 ) -> dict[str, Any]:
     episode_id = parquet_path.stem
     episode_dir = output_dir / episode_id
@@ -488,11 +443,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tcp-pose-column", default=DEFAULT_TCP_POSE_COLUMN)
     parser.add_argument("--vlm-frame-samples", type=int, default=12)
     parser.add_argument("--use-vlm", action="store_true")
-    parser.add_argument("--vlm-backend", choices=("openai", "transformers"), default="openai")
     parser.add_argument("--vlm-model", default="Qwen/Qwen3.5-35B-A3B")
     parser.add_argument("--vlm-base-url", default="http://localhost:8000/v1")
     parser.add_argument("--vlm-api-key", default="EMPTY")
-    parser.add_argument("--vlm-device", default="auto")
     parser.add_argument("--vlm-max-new-tokens", type=int, default=512)
     parser.add_argument("--vlm-temperature", type=float, default=0.0)
     return parser.parse_args()
