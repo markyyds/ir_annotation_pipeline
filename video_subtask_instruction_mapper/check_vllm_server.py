@@ -48,6 +48,17 @@ def first_model_id(models_payload: dict[str, Any]) -> str:
     return str(model_id)
 
 
+def assistant_text(response: dict[str, Any]) -> str:
+    message = response["choices"][0]["message"]
+    content = message.get("content")
+    if content:
+        return str(content)
+    reasoning = message.get("reasoning")
+    if reasoning:
+        return str(reasoning)
+    return ""
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check vLLM OpenAI-compatible server.")
     parser.add_argument("--base-url", default="http://localhost:8000/v1")
@@ -58,6 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--skip-inference", action="store_true")
+    parser.add_argument("--print-full-response", action="store_true")
     return parser.parse_args()
 
 
@@ -79,11 +91,14 @@ def main() -> None:
         "max_tokens": args.max_tokens,
     }
     response = post_json(f"{base_url}/chat/completions", args.api_key, chat_payload, args.timeout)
-    content = response["choices"][0]["message"].get("content", "")
+    content = assistant_text(response)
     print("\nInference smoke test:")
     print(f"model: {model_id}")
     print(f"prompt: {args.prompt}")
     print(f"response: {content}")
+    if args.print_full_response:
+        print("full response:")
+        print(json.dumps(response, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
