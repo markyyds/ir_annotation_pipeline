@@ -433,6 +433,7 @@ def process_episode(
 
     first_frame = int(rows[0][args.frame_column])
     last_frame = int(rows[-1][args.frame_column])
+    frame_indices = [int(row[args.frame_column]) for row in rows]
     row_by_frame = build_row_by_frame(rows, args.frame_column)
     task_instruction = get_task_instruction(rows, args.task_instruction_column)
 
