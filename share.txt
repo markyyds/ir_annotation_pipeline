@@ -17,7 +17,7 @@ rm -rf .venv/lib/python3.12/site-packages/torchaudio*
 uv cache clean
 
 uv pip install torch torchvision torchaudio \
-  --index-url https://download.pytorch.org/whl/cu128 \
+  --index-url https://download.pytorch.org/whl/cu121 \
   --no-cache
 
 uv pip install vllm \
@@ -57,3 +57,11 @@ video_subtask_instruction_mapper/run_generate.sh \
   --vlm-model Qwen/Qwen3.5-35B-A3B \
   --vlm-frame-samples 12
 
+video_subtask_instruction_mapper/run_generate.sh \
+  --use-vlm \
+  --vlm-base-url http://localhost:8000/v1 \
+  --vlm-frame-mode all \
+  --pattern episode_000000.parquet
+
+LIMIT_MM_PER_PROMPT='{"image":128}' \
+  video_subtask_instruction_mapper/serve_qwen35_vllm.sh

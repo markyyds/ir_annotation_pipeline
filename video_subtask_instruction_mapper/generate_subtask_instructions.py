@@ -118,6 +118,28 @@ def sample_frame_indices(start_frame: int, end_frame: int, samples: int) -> list
     return sorted(set(np.linspace(start_frame, end_frame, samples, dtype=int).tolist()))
 
 
+def select_vlm_frame_indices(
+    frame_indices: list[int],
+    frame_mode: str,
+    uniform_samples: int,
+    frame_stride: int,
+    max_frames: int,
+) -> list[int]:
+    if not frame_indices:
+        return []
+    if frame_mode == "uniform":
+        selected = sample_frame_indices(frame_indices[0], frame_indices[-1], uniform_samples)
+    else:
+        stride = max(1, frame_stride)
+        selected = frame_indices[::stride]
+        if frame_indices[-1] not in selected:
+            selected.append(frame_indices[-1])
+
+    if max_frames > 0 and len(selected) > max_frames:
+        selected = [selected[idx] for idx in np.linspace(0, len(selected) - 1, max_frames, dtype=int)]
+    return sorted(set(int(frame_idx) for frame_idx in selected))
+
+
 def open_video_reader(video_path: Path):
     try:
         import imageio.v2 as imageio
@@ -130,9 +152,27 @@ def open_video_reader(video_path: Path):
         ) from exc
 
 
-def save_frame(reader, frame_idx: int, output_path: Path) -> Path:
+def resize_for_vlm(image: Image.Image, max_side: int) -> Image.Image:
+    if max_side <= 0:
+        return image
+    width, height = image.size
+    scale = min(1.0, max_side / max(width, height))
+    if scale >= 1.0:
+        return image
+    return image.resize((round(width * scale), round(height * scale)), Image.Resampling.LANCZOS)
+
+
+def save_frame(
+    reader,
+    frame_idx: int,
+    output_path: Path,
+    max_side: int = 0,
+    quality: int = 95,
+) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(reader.get_data(frame_idx)).convert("RGB").save(output_path, quality=95)
+    image = Image.fromarray(reader.get_data(frame_idx)).convert("RGB")
+    image = resize_for_vlm(image, max_side)
+    image.save(output_path, quality=quality)
     return output_path
 
 
@@ -231,18 +271,35 @@ def assistant_text(response: dict[str, Any]) -> str:
     return ""
 
 
+def get_vllm_models(base_url: str, api_key: str) -> list[str]:
+    request = urllib.request.Request(
+        f"{base_url.rstrip('/')}/models",
+        headers={"Authorization": f"Bearer {api_key}"},
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    models = payload.get("data", [])
+    return [str(model["id"]) for model in models if model.get("id")]
+
+
 def build_planning_prompt(
     task_instruction: str,
-    sampled_frames: list[tuple[int, Path]],
+    frame_inputs: list[tuple[int, Path]],
     first_frame: int,
     last_frame: int,
+    frame_mode: str,
 ) -> str:
-    frame_list = ", ".join(str(frame_idx) for frame_idx, _ in sampled_frames)
+    frame_list = ", ".join(str(frame_idx) for frame_idx, _ in frame_inputs)
     return (
-        "You are a robot manipulation video annotator. "
-        "You will see ordered frames sampled from one episode. "
-        "Use only the visual evidence and the task instruction. "
-        "Do not assume hidden labels or parquet annotations. "
+        "You are a robot manipulation video understanding annotator. "
+        "You will see chronological frames from one robot episode. "
+        "Each image is preceded by its real frame index. "
+        "Treat the ordered images as a single video, not independent photos. "
+        "Use visual state changes, object interactions, gripper-object contact, "
+        "object motion, and subgoal completion to decide segment boundaries. "
+        "Do not split by equal time unless the visual evidence supports it. "
+        "Use only the visual evidence and the task instruction; do not assume hidden labels or parquet annotations. "
         "Return JSON only with this exact schema:\n"
         "{\"subtask_segments\": ["
         "{\"start_frame\": 0, \"end_frame\": 10, "
@@ -250,11 +307,13 @@ def build_planning_prompt(
         "]}\n"
         f"Task instruction: {task_instruction}\n"
         f"Episode frame range: {first_frame} to {last_frame}\n"
-        f"Sampled frame indices in order: {frame_list}\n"
-        "Make 1 to 5 non-overlapping contiguous segments. "
+        f"Frame input mode: {frame_mode}\n"
+        f"Frame indices shown in order: {frame_list}\n"
+        "Make 1 to 8 non-overlapping contiguous segments. "
         "Use actual frame indices, not ordinal sample numbers. "
         "The first segment must start at the episode's first frame. "
-        "The final segment must end at the episode's last frame."
+        "The final segment must end at the episode's last frame. "
+        "Each subtask instruction should describe the concrete visual action for that segment."
     )
 
 
@@ -296,23 +355,36 @@ class VLLMSubtaskPlanner:
                 data = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
+            if exc.code == 404:
+                try:
+                    models = get_vllm_models(self.base_url, self.api_key)
+                except Exception:
+                    models = []
+                available = ", ".join(models) if models else "unknown"
+                raise RuntimeError(
+                    f"VLM API request failed with HTTP 404. Requested model `{self.model_id}` "
+                    f"was not found by the vLLM server. Available models: {available}. "
+                    "Pass one of those ids via --vlm-model, or serve with --served-model-name."
+                ) from exc
             raise RuntimeError(f"VLM API request failed with HTTP {exc.code}: {body}") from exc
         return assistant_text(data)
 
     def plan(
         self,
         task_instruction: str,
-        sampled_frames: list[tuple[int, Path]],
+        frame_inputs: list[tuple[int, Path]],
         first_frame: int,
         last_frame: int,
+        frame_mode: str,
     ) -> list[dict[str, Any]]:
         content: list[dict[str, Any]] = [
             {
                 "type": "text",
-                "text": build_planning_prompt(task_instruction, sampled_frames, first_frame, last_frame),
+                "text": build_planning_prompt(task_instruction, frame_inputs, first_frame, last_frame, frame_mode),
             }
         ]
-        for _, path in sampled_frames:
+        for frame_idx, path in frame_inputs:
+            content.append({"type": "text", "text": f"Frame index: {frame_idx}"})
             content.append(
                 {
                     "type": "image_url",
@@ -328,8 +400,15 @@ class VLLMSubtaskPlanner:
 def maybe_make_vlm(args: argparse.Namespace) -> VLLMSubtaskPlanner | None:
     if not args.use_vlm:
         return None
+    model_id = args.vlm_model
+    if model_id == "auto":
+        models = get_vllm_models(args.vlm_base_url, args.vlm_api_key)
+        if not models:
+            raise RuntimeError(f"No served models found at {args.vlm_base_url.rstrip('/')}/models")
+        model_id = models[0]
+        print(f"[vllm] using served model from /models: {model_id}")
     return VLLMSubtaskPlanner(
-        model_id=args.vlm_model,
+        model_id=model_id,
         base_url=args.vlm_base_url,
         api_key=args.vlm_api_key,
         max_tokens=args.vlm_max_new_tokens,
@@ -359,19 +438,36 @@ def process_episode(
 
     reader = open_video_reader(video_path)
     try:
-        sampled_indices = sample_frame_indices(first_frame, last_frame, args.vlm_frame_samples)
-        sampled_frames = [
-            (
-                frame_idx,
-                save_frame(reader, frame_idx, frame_dir / "vlm_episode_samples" / f"frame_{frame_idx:06d}.jpg"),
-            )
-            for frame_idx in sampled_indices
-        ]
-
         if vlm is None:
+            selected_indices: list[int] = []
+            vlm_frames: list[tuple[int, Path]] = []
             segments = fallback_segments(task_instruction, first_frame, last_frame)
         else:
-            raw_segments = vlm.plan(task_instruction, sampled_frames, first_frame, last_frame)
+            selected_indices = select_vlm_frame_indices(
+                frame_indices=frame_indices,
+                frame_mode=args.vlm_frame_mode,
+                uniform_samples=args.vlm_frame_samples,
+                frame_stride=args.vlm_frame_stride,
+                max_frames=args.vlm_max_frames,
+            )
+            print(
+                f"[{episode_id}] sending {len(selected_indices)}/{len(frame_indices)} frames to VLM "
+                f"(mode={args.vlm_frame_mode})"
+            )
+            vlm_frames = [
+                (
+                    frame_idx,
+                    save_frame(
+                        reader,
+                        frame_idx,
+                        frame_dir / "vlm_episode_frames" / f"frame_{frame_idx:06d}.jpg",
+                        max_side=args.vlm_image_max_side,
+                        quality=args.vlm_image_quality,
+                    ),
+                )
+                for frame_idx in selected_indices
+            ]
+            raw_segments = vlm.plan(task_instruction, vlm_frames, first_frame, last_frame, args.vlm_frame_mode)
             segments = normalize_segments(raw_segments, first_frame, last_frame)
             if not segments:
                 segments = fallback_segments(task_instruction, first_frame, last_frame)
@@ -411,8 +507,9 @@ def process_episode(
         "task_instruction": task_instruction,
         "annotation_fields_used": False,
         "segment_source": "vlm" if vlm is not None else "single_segment_fallback",
-        "vlm_sample_frame_indices": sampled_indices,
-        "vlm_sample_frame_paths": [str(path) for _, path in sampled_frames],
+        "vlm_frame_mode": args.vlm_frame_mode,
+        "vlm_frame_indices": selected_indices,
+        "vlm_frame_paths": [str(path) for _, path in vlm_frames],
         "subtask_segments": segment_records,
         "goal_image_frame": last_frame,
         "goal_image_path": str(goal_image_path),
@@ -441,9 +538,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--task-instruction-column", default=DEFAULT_TASK_INSTRUCTION_COLUMN)
     parser.add_argument("--gripper-pose-column", default=DEFAULT_GRIPPER_POSE_COLUMN)
     parser.add_argument("--tcp-pose-column", default=DEFAULT_TCP_POSE_COLUMN)
+    parser.add_argument(
+        "--vlm-frame-mode",
+        choices=("all", "uniform"),
+        default="all",
+        help="Use all episode frames as ordered image input, or uniformly sampled frames.",
+    )
     parser.add_argument("--vlm-frame-samples", type=int, default=12)
+    parser.add_argument("--vlm-frame-stride", type=int, default=1)
+    parser.add_argument(
+        "--vlm-max-frames",
+        type=int,
+        default=0,
+        help="Optional safety cap after frame selection. 0 means no cap.",
+    )
+    parser.add_argument("--vlm-image-max-side", type=int, default=512)
+    parser.add_argument("--vlm-image-quality", type=int, default=80)
     parser.add_argument("--use-vlm", action="store_true")
-    parser.add_argument("--vlm-model", default="Qwen/Qwen3.5-35B-A3B")
+    parser.add_argument(
+        "--vlm-model",
+        default="auto",
+        help="Served vLLM model id. Use `auto` to take the first /v1/models entry.",
+    )
     parser.add_argument("--vlm-base-url", default="http://localhost:8000/v1")
     parser.add_argument("--vlm-api-key", default="EMPTY")
     parser.add_argument("--vlm-max-new-tokens", type=int, default=512)
@@ -455,6 +571,10 @@ def main() -> None:
     args = parse_args()
     if args.vlm_frame_samples <= 0:
         raise ValueError("--vlm-frame-samples must be positive")
+    if args.vlm_frame_stride <= 0:
+        raise ValueError("--vlm-frame-stride must be positive")
+    if not (1 <= args.vlm_image_quality <= 100):
+        raise ValueError("--vlm-image-quality must be between 1 and 100")
     parquets = sorted(args.test_data.glob(args.pattern))
     if not parquets:
         raise FileNotFoundError(f"No parquets matched {args.test_data / args.pattern}")
