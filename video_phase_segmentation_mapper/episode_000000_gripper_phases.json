@@ -1,0 +1,2022 @@
+{
+  "video": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000.mp4",
+  "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000.parquet",
+  "video_frame_count": 240,
+  "parquet_frame_count": 240,
+  "frame_column": "frame_index",
+  "gripper_column": "other_information.observation_gripper_position",
+  "pose_column": "other_information.observation_gripper_pose6d",
+  "tcp_pose_column": "other_information.observation_tcp_pose6d",
+  "annotation_contact_column": "annotation.contact_frame",
+  "grasp_threshold": 0.4,
+  "contact_threshold": 0.9,
+  "gripper_raw_min": 0.0,
+  "gripper_raw_max": 0.9867841601371765,
+  "phase_ranges": {
+    "pre_grasp": [
+      [
+        0,
+        59
+      ]
+    ],
+    "immobilization": [
+      [
+        60,
+        84
+      ]
+    ],
+    "contact": [
+      [
+        85,
+        187
+      ]
+    ],
+    "detach": [
+      [
+        188,
+        194
+      ]
+    ],
+    "post_grasp": [
+      [
+        195,
+        239
+      ]
+    ],
+    "transition": []
+  },
+  "phases": [
+    {
+      "start_step": 0,
+      "end_step": 59,
+      "phase": "pre_grasp"
+    },
+    {
+      "start_step": 60,
+      "end_step": 84,
+      "phase": "immobilization"
+    },
+    {
+      "start_step": 85,
+      "end_step": 187,
+      "phase": "contact"
+    },
+    {
+      "start_step": 188,
+      "end_step": 194,
+      "phase": "detach"
+    },
+    {
+      "start_step": 195,
+      "end_step": 239,
+      "phase": "post_grasp"
+    }
+  ],
+  "first_contact_frame_index": 85,
+  "reference_annotation_contact_frame_index": 89,
+  "contact_pose": {
+    "frame_index": 85,
+    "pose_column": "other_information.observation_gripper_pose6d",
+    "gripper_pose6d": [
+      0.49441459542366883,
+      -0.052877690144358364,
+      0.17004406673526112,
+      2.911149854559741,
+      0.10296535458435474,
+      0.9138992531633131
+    ],
+    "tcp_pose_column": "other_information.observation_tcp_pose6d",
+    "tcp_pose6d": [
+      0.5132332674919428,
+      -0.0872447041430858,
+      0.01788160739427594,
+      2.911149854559741,
+      0.10296535458435474,
+      0.9138992531633131
+    ],
+    "gripper_position_raw": 0.9295154213905334,
+    "gripper_position_normalized": 0.9419633157650225
+  },
+  "frames": [
+    {
+      "step_index": 0,
+      "frame_index": 0,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 1,
+      "frame_index": 1,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 2,
+      "frame_index": 2,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 3,
+      "frame_index": 3,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 4,
+      "frame_index": 4,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 5,
+      "frame_index": 5,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 6,
+      "frame_index": 6,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 7,
+      "frame_index": 7,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 8,
+      "frame_index": 8,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 9,
+      "frame_index": 9,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 10,
+      "frame_index": 10,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 11,
+      "frame_index": 11,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 12,
+      "frame_index": 12,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 13,
+      "frame_index": 13,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 14,
+      "frame_index": 14,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 15,
+      "frame_index": 15,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 16,
+      "frame_index": 16,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 17,
+      "frame_index": 17,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 18,
+      "frame_index": 18,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 19,
+      "frame_index": 19,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 20,
+      "frame_index": 20,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 21,
+      "frame_index": 21,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 22,
+      "frame_index": 22,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 23,
+      "frame_index": 23,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 24,
+      "frame_index": 24,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 25,
+      "frame_index": 25,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 26,
+      "frame_index": 26,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 27,
+      "frame_index": 27,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 28,
+      "frame_index": 28,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 29,
+      "frame_index": 29,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 30,
+      "frame_index": 30,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 31,
+      "frame_index": 31,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 32,
+      "frame_index": 32,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 33,
+      "frame_index": 33,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 34,
+      "frame_index": 34,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 35,
+      "frame_index": 35,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 36,
+      "frame_index": 36,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 37,
+      "frame_index": 37,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 38,
+      "frame_index": 38,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 39,
+      "frame_index": 39,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 40,
+      "frame_index": 40,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 41,
+      "frame_index": 41,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 42,
+      "frame_index": 42,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 43,
+      "frame_index": 43,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 44,
+      "frame_index": 44,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 45,
+      "frame_index": 45,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 46,
+      "frame_index": 46,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 47,
+      "frame_index": 47,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 48,
+      "frame_index": 48,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 49,
+      "frame_index": 49,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 50,
+      "frame_index": 50,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 51,
+      "frame_index": 51,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 52,
+      "frame_index": 52,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 53,
+      "frame_index": 53,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 54,
+      "frame_index": 54,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.026431767269968987,
+      "gripper_position_normalized": 0.026785736488269252
+    },
+    {
+      "step_index": 55,
+      "frame_index": 55,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.08810574561357498,
+      "gripper_position_normalized": 0.08928564106226232
+    },
+    {
+      "step_index": 56,
+      "frame_index": 56,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.16299556195735931,
+      "gripper_position_normalized": 0.16517836763445118
+    },
+    {
+      "step_index": 57,
+      "frame_index": 57,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.2466960847377777,
+      "gripper_position_normalized": 0.24999979195419153
+    },
+    {
+      "step_index": 58,
+      "frame_index": 58,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.30837005376815796,
+      "gripper_position_normalized": 0.3124996870902379
+    },
+    {
+      "step_index": 59,
+      "frame_index": 59,
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "gripper_position_raw": 0.38766518235206604,
+      "gripper_position_normalized": 0.392856721009237
+    },
+    {
+      "step_index": 60,
+      "frame_index": 60,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.44933921098709106,
+      "gripper_position_normalized": 0.45535667654814227
+    },
+    {
+      "step_index": 61,
+      "frame_index": 61,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.5286343693733215,
+      "gripper_position_normalized": 0.5357137406685708
+    },
+    {
+      "step_index": 62,
+      "frame_index": 62,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.5903083682060242,
+      "gripper_position_normalized": 0.5982136660060466
+    },
+    {
+      "step_index": 63,
+      "frame_index": 63,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.6519823670387268,
+      "gripper_position_normalized": 0.6607135913435225
+    },
+    {
+      "step_index": 64,
+      "frame_index": 64,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.7312775254249573,
+      "gripper_position_normalized": 0.741070655463951
+    },
+    {
+      "step_index": 65,
+      "frame_index": 65,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.7973568439483643,
+      "gripper_position_normalized": 0.8080348956985944
+    },
+    {
+      "step_index": 66,
+      "frame_index": 66,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.8414096832275391,
+      "gripper_position_normalized": 0.8526776822531175
+    },
+    {
+      "step_index": 67,
+      "frame_index": 67,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.8458150029182434,
+      "gripper_position_normalized": 0.857141997150285
+    },
+    {
+      "step_index": 68,
+      "frame_index": 68,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.8237885236740112,
+      "gripper_position_normalized": 0.8348205434701647
+    },
+    {
+      "step_index": 69,
+      "frame_index": 69,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.7885462641716003,
+      "gripper_position_normalized": 0.7991063263071181
+    },
+    {
+      "step_index": 70,
+      "frame_index": 70,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.7797356843948364,
+      "gripper_position_normalized": 0.7901777569156416
+    },
+    {
+      "step_index": 71,
+      "frame_index": 71,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.7268722653388977,
+      "gripper_position_normalized": 0.7366064009696422
+    },
+    {
+      "step_index": 72,
+      "frame_index": 72,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.700440526008606,
+      "gripper_position_normalized": 0.7098206927952131
+    },
+    {
+      "step_index": 73,
+      "frame_index": 73,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.6784141063690186,
+      "gripper_position_normalized": 0.6874992995179516
+    },
+    {
+      "step_index": 74,
+      "frame_index": 74,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.6519823670387268,
+      "gripper_position_normalized": 0.6607135913435225
+    },
+    {
+      "step_index": 75,
+      "frame_index": 75,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.634361207485199,
+      "gripper_position_normalized": 0.6428564525605697
+    },
+    {
+      "step_index": 76,
+      "frame_index": 76,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.607929527759552,
+      "gripper_position_normalized": 0.6160708047889994
+    },
+    {
+      "step_index": 77,
+      "frame_index": 77,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.6035242676734924,
+      "gripper_position_normalized": 0.6116065502946907
+    },
+    {
+      "step_index": 78,
+      "frame_index": 78,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.5991189479827881,
+      "gripper_position_normalized": 0.607142235397523
+    },
+    {
+      "step_index": 79,
+      "frame_index": 79,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.5991189479827881,
+      "gripper_position_normalized": 0.607142235397523
+    },
+    {
+      "step_index": 80,
+      "frame_index": 80,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.6211453676223755,
+      "gripper_position_normalized": 0.6294636286747846
+    },
+    {
+      "step_index": 81,
+      "frame_index": 81,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.634361207485199,
+      "gripper_position_normalized": 0.6428564525605697
+    },
+    {
+      "step_index": 82,
+      "frame_index": 82,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.6960352659225464,
+      "gripper_position_normalized": 0.7053564383009043
+    },
+    {
+      "step_index": 83,
+      "frame_index": 83,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.784140944480896,
+      "gripper_position_normalized": 0.7946420114099504
+    },
+    {
+      "step_index": 84,
+      "frame_index": 84,
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "gripper_position_raw": 0.850220263004303,
+      "gripper_position_normalized": 0.8616062516445938
+    },
+    {
+      "step_index": 85,
+      "frame_index": 85,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9295154213905334,
+      "gripper_position_normalized": 0.9419633157650225
+    },
+    {
+      "step_index": 86,
+      "frame_index": 86,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 87,
+      "frame_index": 87,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 88,
+      "frame_index": 88,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 89,
+      "frame_index": 89,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 90,
+      "frame_index": 90,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 91,
+      "frame_index": 91,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 92,
+      "frame_index": 92,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 93,
+      "frame_index": 93,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 94,
+      "frame_index": 94,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 95,
+      "frame_index": 95,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 96,
+      "frame_index": 96,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 97,
+      "frame_index": 97,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 98,
+      "frame_index": 98,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 99,
+      "frame_index": 99,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 100,
+      "frame_index": 100,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 101,
+      "frame_index": 101,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 102,
+      "frame_index": 102,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 103,
+      "frame_index": 103,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 104,
+      "frame_index": 104,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 105,
+      "frame_index": 105,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 106,
+      "frame_index": 106,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 107,
+      "frame_index": 107,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 108,
+      "frame_index": 108,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 109,
+      "frame_index": 109,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 110,
+      "frame_index": 110,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 111,
+      "frame_index": 111,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 112,
+      "frame_index": 112,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 113,
+      "frame_index": 113,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 114,
+      "frame_index": 114,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 115,
+      "frame_index": 115,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 116,
+      "frame_index": 116,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 117,
+      "frame_index": 117,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 118,
+      "frame_index": 118,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 119,
+      "frame_index": 119,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 120,
+      "frame_index": 120,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 121,
+      "frame_index": 121,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 122,
+      "frame_index": 122,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 123,
+      "frame_index": 123,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 124,
+      "frame_index": 124,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 125,
+      "frame_index": 125,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 126,
+      "frame_index": 126,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 127,
+      "frame_index": 127,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 128,
+      "frame_index": 128,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 129,
+      "frame_index": 129,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 130,
+      "frame_index": 130,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 131,
+      "frame_index": 131,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 132,
+      "frame_index": 132,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 133,
+      "frame_index": 133,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 134,
+      "frame_index": 134,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 135,
+      "frame_index": 135,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 136,
+      "frame_index": 136,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 137,
+      "frame_index": 137,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 138,
+      "frame_index": 138,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 139,
+      "frame_index": 139,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 140,
+      "frame_index": 140,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 141,
+      "frame_index": 141,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 142,
+      "frame_index": 142,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 143,
+      "frame_index": 143,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 144,
+      "frame_index": 144,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 145,
+      "frame_index": 145,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 146,
+      "frame_index": 146,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 147,
+      "frame_index": 147,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 148,
+      "frame_index": 148,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 149,
+      "frame_index": 149,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 150,
+      "frame_index": 150,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 151,
+      "frame_index": 151,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 152,
+      "frame_index": 152,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 153,
+      "frame_index": 153,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 154,
+      "frame_index": 154,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 155,
+      "frame_index": 155,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 156,
+      "frame_index": 156,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 157,
+      "frame_index": 157,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 158,
+      "frame_index": 158,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 159,
+      "frame_index": 159,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 160,
+      "frame_index": 160,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 161,
+      "frame_index": 161,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 162,
+      "frame_index": 162,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 163,
+      "frame_index": 163,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 164,
+      "frame_index": 164,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 165,
+      "frame_index": 165,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 166,
+      "frame_index": 166,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 167,
+      "frame_index": 167,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 168,
+      "frame_index": 168,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 169,
+      "frame_index": 169,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 170,
+      "frame_index": 170,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 171,
+      "frame_index": 171,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 172,
+      "frame_index": 172,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 173,
+      "frame_index": 173,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 174,
+      "frame_index": 174,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 175,
+      "frame_index": 175,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 176,
+      "frame_index": 176,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 177,
+      "frame_index": 177,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 178,
+      "frame_index": 178,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 179,
+      "frame_index": 179,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 180,
+      "frame_index": 180,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 181,
+      "frame_index": 181,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 182,
+      "frame_index": 182,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 183,
+      "frame_index": 183,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 184,
+      "frame_index": 184,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 185,
+      "frame_index": 185,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9867841601371765,
+      "gripper_position_normalized": 0.9999989866081894
+    },
+    {
+      "step_index": 186,
+      "frame_index": 186,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.9691630005836487,
+      "gripper_position_normalized": 0.9821418478252367
+    },
+    {
+      "step_index": 187,
+      "frame_index": 187,
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "gripper_position_raw": 0.91629958152771,
+      "gripper_position_normalized": 0.9285704918792372
+    },
+    {
+      "step_index": 188,
+      "frame_index": 188,
+      "phase": "detach",
+      "robo2vlm_phase": "detach",
+      "gripper_position_raw": 0.8370044231414795,
+      "gripper_position_normalized": 0.8482134277588087
+    },
+    {
+      "step_index": 189,
+      "frame_index": 189,
+      "phase": "detach",
+      "robo2vlm_phase": "detach",
+      "gripper_position_raw": 0.7753304243087769,
+      "gripper_position_normalized": 0.7857135024213329
+    },
+    {
+      "step_index": 190,
+      "frame_index": 190,
+      "phase": "detach",
+      "robo2vlm_phase": "detach",
+      "gripper_position_raw": 0.6960352659225464,
+      "gripper_position_normalized": 0.7053564383009043
+    },
+    {
+      "step_index": 191,
+      "frame_index": 191,
+      "phase": "detach",
+      "robo2vlm_phase": "detach",
+      "gripper_position_raw": 0.6299559473991394,
+      "gripper_position_normalized": 0.6383921980662609
+    },
+    {
+      "step_index": 192,
+      "frame_index": 192,
+      "phase": "detach",
+      "robo2vlm_phase": "detach",
+      "gripper_position_raw": 0.5682819485664368,
+      "gripper_position_normalized": 0.5758922727287851
+    },
+    {
+      "step_index": 193,
+      "frame_index": 193,
+      "phase": "detach",
+      "robo2vlm_phase": "detach",
+      "gripper_position_raw": 0.4889867603778839,
+      "gripper_position_normalized": 0.4955351784069271
+    },
+    {
+      "step_index": 194,
+      "frame_index": 194,
+      "phase": "detach",
+      "robo2vlm_phase": "detach",
+      "gripper_position_raw": 0.42731279134750366,
+      "gripper_position_normalized": 0.43303528327088076
+    },
+    {
+      "step_index": 195,
+      "frame_index": 195,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.3480176329612732,
+      "gripper_position_normalized": 0.35267821915045217
+    },
+    {
+      "step_index": 196,
+      "frame_index": 196,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.28634360432624817,
+      "gripper_position_normalized": 0.2901782636115469
+    },
+    {
+      "step_index": 197,
+      "frame_index": 197,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.22466962039470673,
+      "gripper_position_normalized": 0.22767835337478584
+    },
+    {
+      "step_index": 198,
+      "frame_index": 198,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.14537450671195984,
+      "gripper_position_normalized": 0.14732133455650145
+    },
+    {
+      "step_index": 199,
+      "frame_index": 199,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.08370043337345123,
+      "gripper_position_normalized": 0.08482133371545204
+    },
+    {
+      "step_index": 200,
+      "frame_index": 200,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.008810617960989475,
+      "gripper_position_normalized": 0.008928608087057855
+    },
+    {
+      "step_index": 201,
+      "frame_index": 201,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 202,
+      "frame_index": 202,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 203,
+      "frame_index": 203,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 204,
+      "frame_index": 204,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 205,
+      "frame_index": 205,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 206,
+      "frame_index": 206,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 207,
+      "frame_index": 207,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 208,
+      "frame_index": 208,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 209,
+      "frame_index": 209,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 210,
+      "frame_index": 210,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 211,
+      "frame_index": 211,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 212,
+      "frame_index": 212,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 213,
+      "frame_index": 213,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 214,
+      "frame_index": 214,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 215,
+      "frame_index": 215,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 216,
+      "frame_index": 216,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 217,
+      "frame_index": 217,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 218,
+      "frame_index": 218,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 219,
+      "frame_index": 219,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 220,
+      "frame_index": 220,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 221,
+      "frame_index": 221,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 222,
+      "frame_index": 222,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 223,
+      "frame_index": 223,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 224,
+      "frame_index": 224,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 225,
+      "frame_index": 225,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 226,
+      "frame_index": 226,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 227,
+      "frame_index": 227,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 228,
+      "frame_index": 228,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 229,
+      "frame_index": 229,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 230,
+      "frame_index": 230,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 231,
+      "frame_index": 231,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 232,
+      "frame_index": 232,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 233,
+      "frame_index": 233,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 234,
+      "frame_index": 234,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 235,
+      "frame_index": 235,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 236,
+      "frame_index": 236,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 237,
+      "frame_index": 237,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 238,
+      "frame_index": 238,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    },
+    {
+      "step_index": 239,
+      "frame_index": 239,
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "gripper_position_raw": 0.0,
+      "gripper_position_normalized": 0.0
+    }
+  ]
+}

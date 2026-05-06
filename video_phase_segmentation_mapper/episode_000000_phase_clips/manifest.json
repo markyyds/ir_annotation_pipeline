@@ -1,0 +1,52 @@
+{
+  "video": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000.mp4",
+  "phase_json": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000_gripper_phases.json",
+  "fps": 10.0,
+  "clips": [
+    {
+      "phase": "pre-grasp",
+      "robo2vlm_phase": "pre_grasp",
+      "range_index": 0,
+      "start_frame": 0,
+      "end_frame": 59,
+      "duration_seconds": 6.0,
+      "path": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000_phase_clips/00_pre-grasp_frames_000000_000059.mp4"
+    },
+    {
+      "phase": "approach",
+      "robo2vlm_phase": "immobilization",
+      "range_index": 0,
+      "start_frame": 60,
+      "end_frame": 84,
+      "duration_seconds": 2.5,
+      "path": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000_phase_clips/01_approach_frames_000060_000084.mp4"
+    },
+    {
+      "phase": "contact",
+      "robo2vlm_phase": "contact",
+      "range_index": 0,
+      "start_frame": 85,
+      "end_frame": 187,
+      "duration_seconds": 10.3,
+      "path": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000_phase_clips/02_contact_frames_000085_000187.mp4"
+    },
+    {
+      "phase": "detach",
+      "robo2vlm_phase": "detach",
+      "range_index": 0,
+      "start_frame": 188,
+      "end_frame": 194,
+      "duration_seconds": 0.7,
+      "path": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000_phase_clips/03_detach_frames_000188_000194.mp4"
+    },
+    {
+      "phase": "post-grasp",
+      "robo2vlm_phase": "post_grasp",
+      "range_index": 0,
+      "start_frame": 195,
+      "end_frame": 239,
+      "duration_seconds": 4.5,
+      "path": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000_phase_clips/04_post-grasp_frames_000195_000239.mp4"
+    }
+  ]
+}

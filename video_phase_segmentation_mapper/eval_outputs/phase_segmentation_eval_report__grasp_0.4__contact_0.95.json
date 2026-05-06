@@ -1,0 +1,848 @@
+{
+  "test_data": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data",
+  "pattern": "episode_*.parquet",
+  "grasp_threshold": 0.4,
+  "contact_threshold": 0.95,
+  "metrics": {
+    "primary": "first contact frame absolute error and tolerance accuracy",
+    "secondary": "TCP pose at predicted contact compared with annotation.state_affordance",
+    "notes": "annotation.state_affordance matches observation_tcp_pose6d at the annotated contact frame in the provided test data."
+  },
+  "summary": {
+    "num_episodes": 10,
+    "num_with_gt_and_prediction": 10,
+    "contact_frame": {
+      "mae_frames": 3.9,
+      "median_abs_error_frames": 3.5,
+      "rmse_frames": 5.338539126015656,
+      "mean_signed_error_frames": 1.3,
+      "max_abs_error_frames": 12.0,
+      "mean_normalized_abs_error": 0.03109411114942089,
+      "accuracy_at_tolerance": {
+        "within_0_frames": 0.2,
+        "within_1_frames": 0.4,
+        "within_3_frames": 0.5,
+        "within_5_frames": 0.8,
+        "within_10_frames": 0.9
+      }
+    },
+    "contact_pose_vs_state_affordance": {
+      "mean_tcp_position_l2_m": 0.009482880466702813,
+      "median_tcp_position_l2_m": 0.009027461136830249,
+      "mean_tcp_rotation_l2_rad": 0.023312294092276285,
+      "mean_tcp_pose6d_l2": 0.02534186732822269
+    }
+  },
+  "episodes": [
+    {
+      "episode_id": "episode_000000",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000000.parquet",
+      "num_frames": 240,
+      "gt_contact_frame": 89,
+      "pred_contact_frame": 86,
+      "frame_error": -3,
+      "abs_frame_error": 3,
+      "normalized_abs_frame_error": 0.0125,
+      "gt_state_affordance": [
+        0.50651,
+        -0.07723,
+        0.01358,
+        2.93984,
+        0.10395,
+        0.94247
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.5065053974460603,
+        -0.07723254642165042,
+        0.013582201301892777,
+        2.939837018072477,
+        0.10395219510514897,
+        0.9424711119168034
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.5124494251834611,
+        -0.08554268465482055,
+        0.017376121657228405,
+        2.9141409229873307,
+        0.1033542366783673,
+        0.9204121850579531
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.4938283460721395,
+        -0.05154628987765422,
+        0.16952202875126055,
+        2.9141409229873307,
+        0.1033542366783673,
+        0.9204121850579534
+      ],
+      "tcp_position_l2_error": 0.010898992490909426,
+      "tcp_rotation_l2_error": 0.03387247692826858,
+      "tcp_pose6d_l2_error": 0.03558275889490565,
+      "oracle_gt_tcp_position_l2_error": 5.7020606812977626e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            59
+          ]
+        ],
+        "immobilization": [
+          [
+            60,
+            85
+          ]
+        ],
+        "contact": [
+          [
+            86,
+            186
+          ]
+        ],
+        "detach": [
+          [
+            187,
+            194
+          ]
+        ],
+        "post_grasp": [
+          [
+            195,
+            239
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.9867841601371765
+    },
+    {
+      "episode_id": "episode_000001",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000001.parquet",
+      "num_frames": 104,
+      "gt_contact_frame": 51,
+      "pred_contact_frame": 59,
+      "frame_error": 8,
+      "abs_frame_error": 8,
+      "normalized_abs_frame_error": 0.07692307692307693,
+      "gt_state_affordance": [
+        0.53833,
+        0.05806,
+        -0.05042,
+        -2.67901,
+        0.25181,
+        -0.43959
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.5383314014788139,
+        0.05805858930296325,
+        -0.05041860231217042,
+        -2.6790119939143686,
+        0.25181243561334754,
+        -0.4395879469871291
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.5491980287292649,
+        0.04838865380547838,
+        -0.04907487794657972,
+        -2.6789665078679112,
+        0.21298383843311774,
+        -0.47490423711220164
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.5435636216493152,
+        -0.027592672166653676,
+        0.08840454508848603,
+        -2.6789665078679112,
+        0.21298383843311774,
+        -0.47490423711220164
+      ],
+      "tcp_position_l2_error": 0.01461021351702342,
+      "tcp_rotation_l2_error": 0.0524839790450381,
+      "tcp_pose6d_l2_error": 0.05447959613849034,
+      "oracle_gt_tcp_position_l2_error": 2.4305843462471573e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            47
+          ]
+        ],
+        "immobilization": [
+          [
+            48,
+            58
+          ]
+        ],
+        "contact": [
+          [
+            59,
+            79
+          ]
+        ],
+        "detach": [
+          [
+            80,
+            86
+          ]
+        ],
+        "post_grasp": [
+          [
+            87,
+            103
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.8986784219741821
+    },
+    {
+      "episode_id": "episode_000002",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000002.parquet",
+      "num_frames": 113,
+      "gt_contact_frame": 62,
+      "pred_contact_frame": 58,
+      "frame_error": -4,
+      "abs_frame_error": 4,
+      "normalized_abs_frame_error": 0.035398230088495575,
+      "gt_state_affordance": [
+        0.56955,
+        0.01113,
+        0.14007,
+        3.00296,
+        -0.03945,
+        0.42287
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.5695454219180754,
+        0.011130927726967072,
+        0.14006746463717556,
+        3.0029633796351964,
+        -0.03944659124146743,
+        0.4228717553945007
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.5665517815943345,
+        0.004943524852352325,
+        0.13380356430448762,
+        2.9956092774285876,
+        -0.02331198256481004,
+        0.4277398569098526
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.5540851052838757,
+        0.02376696416136532,
+        0.2854254535384617,
+        2.9956092774285876,
+        -0.02331198256481004,
+        0.4277398569098525
+      ],
+      "tcp_position_l2_error": 0.009302150540951562,
+      "tcp_rotation_l2_error": 0.018389786170121807,
+      "tcp_pose6d_l2_error": 0.020608596266347902,
+      "oracle_gt_tcp_position_l2_error": 5.314844878724508e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            53
+          ]
+        ],
+        "immobilization": [
+          [
+            54,
+            57
+          ]
+        ],
+        "contact": [
+          [
+            58,
+            96
+          ]
+        ],
+        "detach": [
+          [
+            97,
+            99
+          ]
+        ],
+        "post_grasp": [
+          [
+            100,
+            112
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.41850221157073975
+    },
+    {
+      "episode_id": "episode_000003",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000003.parquet",
+      "num_frames": 104,
+      "gt_contact_frame": 54,
+      "pred_contact_frame": 59,
+      "frame_error": 5,
+      "abs_frame_error": 5,
+      "normalized_abs_frame_error": 0.04807692307692308,
+      "gt_state_affordance": [
+        0.54229,
+        0.05293,
+        -0.05195,
+        -2.68212,
+        0.23653,
+        -0.45948
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.542285785826941,
+        0.05292753302406461,
+        -0.051946962798879656,
+        -2.682118105475744,
+        0.23653450475899818,
+        -0.4594783212926879
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.5491980287292649,
+        0.04838865380547838,
+        -0.04907487794657972,
+        -2.6789665078679112,
+        0.21298383843311774,
+        -0.47490423711220164
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.5435636216493152,
+        -0.027592672166653676,
+        0.08840454508848603,
+        -2.6789665078679112,
+        0.21298383843311774,
+        -0.47490423711220164
+      ],
+      "tcp_position_l2_error": 0.008752771732708936,
+      "tcp_rotation_l2_error": 0.028324429873419973,
+      "tcp_pose6d_l2_error": 0.02964598355020785,
+      "oracle_gt_tcp_position_l2_error": 5.750636093773044e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            47
+          ]
+        ],
+        "immobilization": [
+          [
+            48,
+            58
+          ]
+        ],
+        "contact": [
+          [
+            59,
+            79
+          ]
+        ],
+        "detach": [
+          [
+            80,
+            86
+          ]
+        ],
+        "post_grasp": [
+          [
+            87,
+            103
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.8986784219741821
+    },
+    {
+      "episode_id": "episode_000004",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000004.parquet",
+      "num_frames": 113,
+      "gt_contact_frame": 63,
+      "pred_contact_frame": 58,
+      "frame_error": -5,
+      "abs_frame_error": 5,
+      "normalized_abs_frame_error": 0.04424778761061947,
+      "gt_state_affordance": [
+        0.57053,
+        0.01393,
+        0.14356,
+        3.00761,
+        -0.04798,
+        0.41835
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.5705269534937768,
+        0.013928499033481395,
+        0.14356279558618945,
+        3.007614791493477,
+        -0.04798089970429986,
+        0.4183470076622088
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.5665517815943345,
+        0.004943524852352325,
+        0.13380356430448762,
+        2.9956092774285876,
+        -0.02331198256481004,
+        0.4277398569098526
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.5540851052838757,
+        0.02376696416136532,
+        0.2854254535384617,
+        2.9956092774285876,
+        -0.02331198256481004,
+        0.4277398569098525
+      ],
+      "tcp_position_l2_error": 0.013848140479614328,
+      "tcp_rotation_l2_error": 0.028994789863117685,
+      "tcp_pose6d_l2_error": 0.032132053061537866,
+      "oracle_gt_tcp_position_l2_error": 4.398795607952316e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            53
+          ]
+        ],
+        "immobilization": [
+          [
+            54,
+            57
+          ]
+        ],
+        "contact": [
+          [
+            58,
+            96
+          ]
+        ],
+        "detach": [
+          [
+            97,
+            99
+          ]
+        ],
+        "post_grasp": [
+          [
+            100,
+            112
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.41850221157073975
+    },
+    {
+      "episode_id": "episode_000005",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000005.parquet",
+      "num_frames": 126,
+      "gt_contact_frame": 75,
+      "pred_contact_frame": 74,
+      "frame_error": -1,
+      "abs_frame_error": 1,
+      "normalized_abs_frame_error": 0.007936507936507936,
+      "gt_state_affordance": [
+        0.52734,
+        -0.24932,
+        0.0858,
+        3.05483,
+        -0.33484,
+        -0.73495
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.5273442795821602,
+        -0.24932405099776267,
+        0.0857995616654677,
+        3.0548338605086087,
+        -0.3348384798810853,
+        -0.7349468751640076
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.5251851445150082,
+        -0.24710479941182772,
+        0.0777758041216298,
+        3.040123397846316,
+        -0.32247339208004,
+        -0.7267684309002993
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.49872962305702195,
+        -0.2022779753758729,
+        0.22608766297679456,
+        3.040123397846316,
+        -0.32247339208004,
+        -0.7267684309002993
+      ],
+      "tcp_position_l2_error": 0.008598734517444511,
+      "tcp_rotation_l2_error": 0.02088432932334534,
+      "tcp_pose6d_l2_error": 0.02258524842872962,
+      "oracle_gt_tcp_position_l2_error": 5.909106827701504e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            67
+          ]
+        ],
+        "immobilization": [
+          [
+            68,
+            73
+          ]
+        ],
+        "contact": [
+          [
+            74,
+            110
+          ]
+        ],
+        "detach": [
+          [
+            111,
+            117
+          ]
+        ],
+        "post_grasp": [
+          [
+            118,
+            125
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.9118942618370056
+    },
+    {
+      "episode_id": "episode_000006",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000006.parquet",
+      "num_frames": 126,
+      "gt_contact_frame": 73,
+      "pred_contact_frame": 74,
+      "frame_error": 1,
+      "abs_frame_error": 1,
+      "normalized_abs_frame_error": 0.007936507936507936,
+      "gt_state_affordance": [
+        0.52364,
+        -0.24508,
+        0.07236,
+        3.02779,
+        -0.3149,
+        -0.71654
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.5236414965216464,
+        -0.24507685993302988,
+        0.07236288312401717,
+        3.027789821786829,
+        -0.3149010173611362,
+        -0.716541438374896
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.5251851445150082,
+        -0.24710479941182772,
+        0.0777758041216298,
+        3.040123397846316,
+        -0.32247339208004,
+        -0.7267684309002993
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.49872962305702195,
+        -0.2022779753758729,
+        0.22608766297679456,
+        3.040123397846316,
+        -0.32247339208004,
+        -0.7267684309002993
+      ],
+      "tcp_position_l2_error": 0.00598483237144201,
+      "tcp_rotation_l2_error": 0.01772257793651134,
+      "tcp_pose6d_l2_error": 0.018705827627506322,
+      "oracle_gt_tcp_position_l2_error": 4.517964332894036e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            67
+          ]
+        ],
+        "immobilization": [
+          [
+            68,
+            73
+          ]
+        ],
+        "contact": [
+          [
+            74,
+            110
+          ]
+        ],
+        "detach": [
+          [
+            111,
+            117
+          ]
+        ],
+        "post_grasp": [
+          [
+            118,
+            125
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.9118942618370056
+    },
+    {
+      "episode_id": "episode_000007",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000007.parquet",
+      "num_frames": 138,
+      "gt_contact_frame": 86,
+      "pred_contact_frame": 86,
+      "frame_error": 0,
+      "abs_frame_error": 0,
+      "normalized_abs_frame_error": 0.0,
+      "gt_state_affordance": [
+        0.76045,
+        0.19042,
+        0.0707,
+        -3.12113,
+        0.00849,
+        0.72449
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.7604510636330839,
+        0.1904172503901893,
+        0.07070495504418345,
+        -3.1211335938795335,
+        0.008485260860666699,
+        0.7244927920762296
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.7604510636330839,
+        0.1904172503901893,
+        0.07070495504418345,
+        -3.1211335938795335,
+        0.008485260860666699,
+        0.7244927920762296
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.7635605353006522,
+        0.18890289055621265,
+        0.22683461381483322,
+        -3.1211335938795335,
+        0.008485260860666699,
+        0.7244927920762296
+      ],
+      "tcp_position_l2_error": 5.7657724814876965e-06,
+      "tcp_rotation_l2_error": 6.570471930856704e-06,
+      "tcp_pose6d_l2_error": 8.741580732479488e-06,
+      "oracle_gt_tcp_position_l2_error": 5.7657724814876965e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            80
+          ]
+        ],
+        "immobilization": [
+          [
+            81,
+            85
+          ]
+        ],
+        "contact": [
+          [
+            86,
+            127
+          ]
+        ],
+        "detach": [
+          [
+            128,
+            132
+          ]
+        ],
+        "post_grasp": [
+          [
+            133,
+            137
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.6607929468154907
+    },
+    {
+      "episode_id": "episode_000008",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000008.parquet",
+      "num_frames": 138,
+      "gt_contact_frame": 86,
+      "pred_contact_frame": 86,
+      "frame_error": 0,
+      "abs_frame_error": 0,
+      "normalized_abs_frame_error": 0.0,
+      "gt_state_affordance": [
+        0.76045,
+        0.19042,
+        0.0707,
+        -3.12113,
+        0.00849,
+        0.72449
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.7604510636330839,
+        0.1904172503901893,
+        0.07070495504418345,
+        -3.1211335938795335,
+        0.008485260860666699,
+        0.7244927920762296
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.7604510636330839,
+        0.1904172503901893,
+        0.07070495504418345,
+        -3.1211335938795335,
+        0.008485260860666699,
+        0.7244927920762296
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.7635605353006522,
+        0.18890289055621265,
+        0.22683461381483322,
+        -3.1211335938795335,
+        0.008485260860666699,
+        0.7244927920762296
+      ],
+      "tcp_position_l2_error": 5.7657724814876965e-06,
+      "tcp_rotation_l2_error": 6.570471930856704e-06,
+      "tcp_pose6d_l2_error": 8.741580732479488e-06,
+      "oracle_gt_tcp_position_l2_error": 5.7657724814876965e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            80
+          ]
+        ],
+        "immobilization": [
+          [
+            81,
+            85
+          ]
+        ],
+        "contact": [
+          [
+            86,
+            127
+          ]
+        ],
+        "detach": [
+          [
+            128,
+            132
+          ]
+        ],
+        "post_grasp": [
+          [
+            133,
+            137
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.6607929468154907
+    },
+    {
+      "episode_id": "episode_000009",
+      "parquet": "/Users/markzhao/Desktop/ir_annotation_pipeline/test_data/episode_000009.parquet",
+      "num_frames": 154,
+      "gt_contact_frame": 49,
+      "pred_contact_frame": 61,
+      "frame_error": 12,
+      "abs_frame_error": 12,
+      "normalized_abs_frame_error": 0.07792207792207792,
+      "gt_state_affordance": [
+        0.44889,
+        -0.01169,
+        -0.01472,
+        -3.08744,
+        -0.11974,
+        0.21072
+      ],
+      "gt_tcp_pose_at_gt_contact": [
+        0.44889473190829127,
+        -0.0116915460027061,
+        -0.014718765079957202,
+        -3.087442678237184,
+        -0.11974044296002351,
+        0.2107247199759448
+      ],
+      "pred_tcp_pose_at_pred_contact": [
+        0.4636768075524251,
+        -0.01742824418972167,
+        -0.031128561311515146,
+        -3.076091613205092,
+        -0.11703308135858137,
+        0.24098670824622134
+      ],
+      "pred_gripper_pose_at_pred_contact": [
+        0.4483518731514532,
+        -0.03178572306263558,
+        0.12459657398213653,
+        -3.076091613205092,
+        -0.11703308135858137,
+        0.24098670824622137
+      ],
+      "tcp_position_l2_error": 0.022821437471970976,
+      "tcp_rotation_l2_error": 0.03243743083907827,
+      "tcp_pose6d_l2_error": 0.03966112615303639,
+      "oracle_gt_tcp_position_l2_error": 5.1289480360229405e-06,
+      "phase_ranges": {
+        "pre_grasp": [
+          [
+            0,
+            53
+          ]
+        ],
+        "immobilization": [
+          [
+            54,
+            60
+          ]
+        ],
+        "contact": [
+          [
+            61,
+            140
+          ]
+        ],
+        "detach": [
+          [
+            141,
+            148
+          ]
+        ],
+        "post_grasp": [
+          [
+            149,
+            153
+          ]
+        ],
+        "transition": []
+      },
+      "gripper_raw_min": 0.0,
+      "gripper_raw_max": 0.9647576808929443
+    }
+  ]
+}
