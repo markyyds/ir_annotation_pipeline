@@ -65,3 +65,10 @@ video_subtask_instruction_mapper/run_generate.sh \
 
 LIMIT_MM_PER_PROMPT='{"image":128}' \
   video_subtask_instruction_mapper/serve_qwen35_vllm.sh
+
+video_target_object_grounding_vlm_mapper/run_generate.sh \
+  --use-vlm \
+  --vlm-base-url http://localhost:8000/v1 \
+  --vlm-model auto \
+  --pattern episode_000000.parquet
+
