@@ -1,0 +1,60 @@
+{
+  "video_path": "/Users/markzhao/Desktop/ir_annotation_pipeline/episode_000000.mp4",
+  "frame_index": 0,
+  "module": "combined",
+  "device": "mps",
+  "first_frame_path": "/Users/markzhao/Desktop/ir_annotation_pipeline/yoloe_sam2_first_frame/first_frame.jpg",
+  "overlay_path": "/Users/markzhao/Desktop/ir_annotation_pipeline/yoloe_sam2_first_frame/first_frame_overlay.jpg",
+  "object_prompts": [
+    "fleece"
+  ],
+  "gripper_prompt": "robot gripper",
+  "object_detections": [
+    {
+      "label": "fleece",
+      "box_xyxy": [
+        169.59921264648438,
+        83.9722900390625,
+        242.40020751953125,
+        137.71188354492188
+      ],
+      "box_score": 0.027548598125576973,
+      "mask_score": 0.7633492350578308,
+      "mask_path": "/Users/markzhao/Desktop/ir_annotation_pipeline/yoloe_sam2_first_frame/masks/object_00_fleece.png"
+    },
+    {
+      "label": "fleece",
+      "box_xyxy": [
+        0.140655517578125,
+        77.06633758544922,
+        262.90087890625,
+        179.56512451171875
+      ],
+      "box_score": 0.01668153516948223,
+      "mask_score": 0.9001930356025696,
+      "mask_path": "/Users/markzhao/Desktop/ir_annotation_pipeline/yoloe_sam2_first_frame/masks/object_01_fleece.png"
+    },
+    {
+      "label": "fleece",
+      "box_xyxy": [
+        171.2398223876953,
+        84.07510375976562,
+        231.65992736816406,
+        123.26329040527344
+      ],
+      "box_score": 0.0143174072727561,
+      "mask_score": 0.9351539015769958,
+      "mask_path": "/Users/markzhao/Desktop/ir_annotation_pipeline/yoloe_sam2_first_frame/masks/object_02_fleece.png"
+    }
+  ],
+  "gripper_detection": {
+    "label": "robot gripper",
+    "score": 0.022030005231499672,
+    "xyxy": [
+      218.18408203125,
+      0.2816143035888672,
+      277.7525939941406,
+      57.06065368652344
+    ]
+  }
+}
