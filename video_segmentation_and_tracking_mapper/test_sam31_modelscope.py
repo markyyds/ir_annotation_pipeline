@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
-"""Smoke-test SAM 3.1 video point prompting from the ModelScope checkpoint.
+"""Smoke-test SAM 3.1 ModelScope image visual prompts from a video point.
 
-This test follows the point-prompt path we want in the main mapper:
-
-1. Download facebook/sam3.1 with ModelScope.
-2. Build a SAM3 video predictor.
-3. Start a video session from an .mp4.
-4. Add a positive point prompt on frame 0.
-5. Propagate the object through the video and write masks/bboxes/overlays.
-
-The input MUST be a video file. The point is accepted in absolute first-frame
-pixel coordinates and normalized before it is sent to SAM3.
+This script downloads facebook/sam3.1 from ModelScope, extracts the first
+frame of a video, expands a point into a tiny normalized bbox, and feeds that
+bbox to SAM3 as a positive geometric visual prompt.
 """
 
 from __future__ import annotations
@@ -19,7 +12,7 @@ import argparse
 import inspect
 import json
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -50,15 +43,16 @@ def _load_pil():
     return Image, ImageDraw
 
 
-def _load_sam3_video_builder():
+def _load_sam3_image_builder():
     try:
-        from sam3.model_builder import build_sam3_video_predictor
+        from sam3.model.sam3_image_processor import Sam3Processor
+        from sam3.model_builder import build_sam3_image_model
     except ImportError as exc:
         raise RuntimeError(
-            "Missing dependency 'sam3' or a SAM3 build without video predictor support. Install the official package:\n"
+            "Missing dependency 'sam3'. Install the official package:\n"
             "  python -m pip install git+https://github.com/facebookresearch/sam3.git"
         ) from exc
-    return build_sam3_video_predictor
+    return build_sam3_image_model, Sam3Processor
 
 
 def _auto_device(torch_module) -> str:
@@ -93,8 +87,8 @@ def _find_checkpoint(model_dir: Path) -> Path | None:
         score = 0
         if "sam3.1" in name or "sam31" in name:
             score += 4
-        if "video" in name or "tracker" in name:
-            score += 3
+        if "image" in name:
+            score += 2
         if name.endswith((".pt", ".pth")):
             score += 1
         return (-score, len(path.parts), str(path))
@@ -102,10 +96,7 @@ def _find_checkpoint(model_dir: Path) -> Path | None:
     return sorted(candidates, key=priority)[0]
 
 
-def _build_video_predictor(builder, checkpoint_path: Path | None, device: str, args: argparse.Namespace):
-    torch = _load_torch()
-    signature = inspect.signature(builder)
-    kwargs: dict[str, Any] = {}
+def _build_image_model(builder, checkpoint_path: Path | None, device: str):
     if checkpoint_path is None:
         raise RuntimeError(
             "ModelScope download did not contain a SAM3 checkpoint. "
@@ -113,6 +104,8 @@ def _build_video_predictor(builder, checkpoint_path: Path | None, device: str, a
             "that may fall back to Hugging Face. Pass --checkpoint explicitly if needed."
         )
 
+    signature = inspect.signature(builder)
+    kwargs: dict[str, Any] = {}
     checkpoint_arg_set = False
     for name in ("checkpoint_path", "ckpt_path", "checkpoint"):
         if name in signature.parameters:
@@ -121,24 +114,32 @@ def _build_video_predictor(builder, checkpoint_path: Path | None, device: str, a
             break
     if not checkpoint_arg_set:
         raise RuntimeError(
-            "SAM3 video builder does not expose a known checkpoint argument "
+            "SAM3 image builder does not expose a known checkpoint argument "
             f"(signature: {signature}). Refusing to use a non-ModelScope fallback."
         )
     if "load_from_HF" in signature.parameters:
         kwargs["load_from_HF"] = False
     if "load_from_hf" in signature.parameters:
         kwargs["load_from_hf"] = False
-    if "version" in signature.parameters:
-        kwargs["version"] = args.version
-    if "gpus_to_use" in signature.parameters and device.startswith("cuda"):
-        kwargs["gpus_to_use"] = range(torch.cuda.device_count())
-    if "compile" in signature.parameters:
-        kwargs["compile"] = args.compile
-    if "warm_up" in signature.parameters:
-        kwargs["warm_up"] = args.warm_up
-    if "async_loading_frames" in signature.parameters:
-        kwargs["async_loading_frames"] = args.async_loading_frames
-    return builder(**kwargs), kwargs
+    if "device" in signature.parameters:
+        kwargs["device"] = device
+
+    model = builder(**kwargs)
+    if hasattr(model, "to"):
+        model = model.to(device)
+    if hasattr(model, "eval"):
+        model.eval()
+    return model, kwargs
+
+
+def _build_processor(Sam3Processor, model, confidence_threshold: float):
+    signature = inspect.signature(Sam3Processor)
+    kwargs: dict[str, Any] = {}
+    if "confidence_threshold" in signature.parameters:
+        kwargs["confidence_threshold"] = confidence_threshold
+    elif "conf_threshold" in signature.parameters:
+        kwargs["conf_threshold"] = confidence_threshold
+    return Sam3Processor(model, **kwargs)
 
 
 def _validate_video_path(input_path: Path) -> None:
@@ -152,19 +153,22 @@ def _validate_video_path(input_path: Path) -> None:
         )
 
 
-def _read_frame(video_path: Path, frame_index: int):
-    imageio = _require("imageio.v2", "python -m pip install 'imageio[ffmpeg]'")
-    reader = imageio.get_reader(str(video_path))
+def _load_first_frame(input_path: Path):
+    Image, _ImageDraw = _load_pil()
+    cv2 = _require("cv2", "python -m pip install opencv-python")
+
+    cap = cv2.VideoCapture(str(input_path))
+    if not cap.isOpened():
+        raise RuntimeError(f"Failed to open video with OpenCV: {input_path}")
     try:
-        return reader.get_data(frame_index)
+        ok, frame_bgr = cap.read()
     finally:
-        reader.close()
+        cap.release()
+    if not ok or frame_bgr is None:
+        raise RuntimeError(f"Failed to read first frame from video: {input_path}")
 
-
-def _frame_size(video_path: Path) -> tuple[int, int]:
-    frame = _read_frame(video_path, 0)
-    height, width = frame.shape[:2]
-    return int(width), int(height)
+    frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(frame_rgb)
 
 
 def _to_numpy(value: Any):
@@ -188,22 +192,44 @@ def _first_present(mapping: dict[str, Any], names: tuple[str, ...]):
     return None
 
 
-def _response_outputs(response: Any) -> dict[str, Any]:
-    if isinstance(response, dict):
-        if isinstance(response.get("outputs"), dict):
-            return response["outputs"]
-        return response
-    if hasattr(response, "outputs") and isinstance(response.outputs, dict):
-        return response.outputs
-    return {}
+def _point_to_normalized_box(point_xy: list[float], width: int, height: int, box_size_px: float) -> list[float]:
+    cx = max(0.0, min(float(point_xy[0]), float(width))) / max(1.0, float(width))
+    cy = max(0.0, min(float(point_xy[1]), float(height))) / max(1.0, float(height))
+    bw = max(1.0, float(box_size_px)) / max(1.0, float(width))
+    bh = max(1.0, float(box_size_px)) / max(1.0, float(height))
+    return [cx, cy, bw, bh]
 
 
-def _response_session_id(response: Any) -> str:
-    if isinstance(response, dict) and "session_id" in response:
-        return str(response["session_id"])
-    if hasattr(response, "session_id"):
-        return str(response.session_id)
-    raise RuntimeError(f"SAM3 start_session response did not contain session_id: {response}")
+def _run_box_visual_prompt(processor, image, normalized_box: list[float]) -> dict[str, Any]:
+    torch = _load_torch()
+    autocast_context = (
+        torch.autocast("cuda", dtype=torch.bfloat16)
+        if torch.cuda.is_available()
+        else _null_context()
+    )
+    with torch.inference_mode(), autocast_context:
+        state = processor.set_image(image)
+        if not hasattr(processor, "add_geometric_prompt"):
+            raise RuntimeError(
+                "This SAM3 processor does not expose add_geometric_prompt. "
+                f"Available public methods: {[name for name in dir(processor) if not name.startswith('_')]}"
+            )
+        return processor.add_geometric_prompt(
+            state=state,
+            box=normalized_box,
+            label=True,
+        )
+
+
+def _null_context():
+    class _NullContext:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    return _NullContext()
 
 
 def _mask_to_bbox(mask: Any) -> list[float] | None:
@@ -215,168 +241,84 @@ def _mask_to_bbox(mask: Any) -> list[float] | None:
     return [float(xs.min()), float(ys.min()), float(xs.max() + 1), float(ys.max() + 1)]
 
 
-def _extract_mask(outputs: dict[str, Any], obj_id: int):
-    np = _require("numpy", "python -m pip install numpy")
-    masks = _to_numpy(_first_present(outputs, ("out_binary_masks", "pred_masks", "masks")))
+def _records_from_output(output: dict[str, Any], max_masks: int) -> tuple[list[Any], list[dict[str, Any]]]:
+    masks = _to_numpy(_first_present(output, ("masks", "pred_masks")))
+    boxes = _to_numpy(_first_present(output, ("boxes", "pred_boxes")))
+    scores = _to_numpy(_first_present(output, ("scores", "pred_scores", "iou_scores")))
+    labels = _first_present(output, ("labels", "text_labels"))
+
     if masks is None:
-        return None
-    masks = np.asarray(masks)
-    if masks.ndim == 4 and masks.shape[1] == 1:
-        masks = masks[:, 0]
-    if masks.ndim == 4 and masks.shape[0] == 1:
-        masks = masks[0]
-    if masks.ndim == 2:
-        return masks
-    if masks.ndim < 2:
-        return None
+        raise RuntimeError(f"SAM3 output did not contain masks. Keys: {sorted(output.keys())}")
 
-    obj_ids = _first_present(outputs, ("out_obj_ids", "obj_ids", "object_ids"))
-    if obj_ids is not None:
-        obj_ids = [int(item) for item in np.asarray(_to_numpy(obj_ids)).reshape(-1).tolist()]
-        if obj_id in obj_ids:
-            return masks[obj_ids.index(obj_id)]
-    return masks[0]
+    masks = masks.squeeze(1) if getattr(masks, "ndim", 0) == 4 and masks.shape[1] == 1 else masks
+    mask_list = [masks[idx] for idx in range(min(len(masks), max_masks))]
 
-
-def _iter_stream(stream: Any) -> Iterable[Any]:
-    if stream is None:
-        return []
-    return stream
+    records = []
+    for idx, mask in enumerate(mask_list):
+        record: dict[str, Any] = {"index": idx, "bbox_from_mask": _mask_to_bbox(mask)}
+        if scores is not None and len(scores) > idx:
+            record["score"] = float(scores[idx])
+        if boxes is not None and len(boxes) > idx:
+            record["box"] = [float(v) for v in boxes[idx].reshape(-1).tolist()]
+        if labels is not None and len(labels) > idx:
+            record["label"] = str(labels[idx])
+        records.append(record)
+    return mask_list, records
 
 
-def _save_mask(mask: Any, path: Path) -> None:
+def _save_mask_png(mask, output_path: Path) -> None:
     Image, _ImageDraw = _load_pil()
     np = _require("numpy", "python -m pip install numpy")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray((np.asarray(mask).squeeze() > 0).astype("uint8") * 255).save(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    mask = np.asarray(mask).squeeze()
+    if mask.ndim != 2:
+        raise ValueError(f"Expected a 2D mask, got shape {mask.shape}")
+    Image.fromarray((mask > 0).astype("uint8") * 255).save(output_path)
 
 
-def _save_overlay(video_path: Path, frame_index: int, mask: Any, point_xy: list[float] | None, bbox: list[float] | None, path: Path) -> None:
+def _save_overlay(image, masks, point_xy: list[float], point_box_xyxy: list[float], output_path: Path) -> None:
     Image, ImageDraw = _load_pil()
     np = _require("numpy", "python -m pip install numpy")
 
-    image = Image.fromarray(_read_frame(video_path, frame_index)).convert("RGB")
     overlay = np.asarray(image).copy()
-    mask_bool = np.asarray(mask).squeeze() > 0
-    if mask_bool.ndim == 2:
-        color = np.array([46, 204, 113], dtype=np.uint8)
+    colors = np.array(
+        [
+            [46, 204, 113],
+            [52, 152, 219],
+            [241, 196, 15],
+            [231, 76, 60],
+            [155, 89, 182],
+        ],
+        dtype=np.uint8,
+    )
+    for idx, mask in enumerate(masks):
+        mask_bool = np.asarray(mask).squeeze() > 0
+        if mask_bool.ndim != 2:
+            continue
+        color = colors[idx % len(colors)]
         overlay[mask_bool] = (0.55 * overlay[mask_bool] + 0.45 * color).astype(np.uint8)
     image = Image.fromarray(overlay)
     draw = ImageDraw.Draw(image)
-    if bbox is not None:
-        draw.rectangle(tuple(bbox), outline="red", width=3)
-    if point_xy is not None:
-        x, y = point_xy
-        r = 7
-        draw.ellipse((x - r, y - r, x + r, y + r), fill="yellow", outline="black", width=2)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    image.save(path)
-
-
-def _run_point_prompt_tracking(
-    predictor,
-    video_path: Path,
-    point_xy: list[float],
-    width: int,
-    height: int,
-    obj_id: int,
-    max_frames: int,
-    output_dir: Path,
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    torch = _load_torch()
-    point_norm = [
-        max(0.0, min(float(point_xy[0]) / max(1.0, float(width)), 1.0)),
-        max(0.0, min(float(point_xy[1]) / max(1.0, float(height)), 1.0)),
-    ]
-    points_tensor = torch.tensor([point_norm], dtype=torch.float32)
-    labels_tensor = torch.tensor([1], dtype=torch.int32)
-
-    session_response = predictor.handle_request(
-        request={"type": "start_session", "resource_path": str(video_path)}
-    )
-    session_id = _response_session_id(session_response)
-    records: list[dict[str, Any]] = []
-    try:
-        add_response = predictor.handle_request(
-            request={
-                "type": "add_prompt",
-                "session_id": session_id,
-                "frame_index": 0,
-                "obj_id": int(obj_id),
-                "points": points_tensor,
-                "point_labels": labels_tensor,
-                "rel_coordinates": True,
-            }
-        )
-        add_outputs = _response_outputs(add_response)
-        initial_mask = _extract_mask(add_outputs, obj_id)
-        if initial_mask is not None:
-            bbox = _mask_to_bbox(initial_mask)
-            mask_path = output_dir / "masks" / "frame_000000_mask.png"
-            overlay_path = output_dir / "overlays" / "frame_000000_overlay.jpg"
-            _save_mask(initial_mask, mask_path)
-            _save_overlay(video_path, 0, initial_mask, point_xy, bbox, overlay_path)
-            records.append(
-                {
-                    "frame_index": 0,
-                    "bbox_xyxy": bbox,
-                    "mask_path": str(mask_path),
-                    "overlay_path": str(overlay_path),
-                }
-            )
-
-        stream = predictor.handle_stream_request(
-            request={"type": "propagate_in_video", "session_id": session_id}
-        )
-        seen = {0} if initial_mask is not None else set()
-        for fallback_idx, response in enumerate(_iter_stream(stream)):
-            outputs = _response_outputs(response)
-            frame_idx = int(_first_present(outputs, ("frame_index", "frame_idx")) or fallback_idx)
-            if frame_idx in seen:
-                continue
-            if len(records) >= max_frames:
-                break
-            mask = _extract_mask(outputs, obj_id)
-            if mask is None:
-                continue
-            bbox = _mask_to_bbox(mask)
-            mask_path = output_dir / "masks" / f"frame_{frame_idx:06d}_mask.png"
-            overlay_path = output_dir / "overlays" / f"frame_{frame_idx:06d}_overlay.jpg"
-            _save_mask(mask, mask_path)
-            _save_overlay(video_path, frame_idx, mask, None, bbox, overlay_path)
-            records.append(
-                {
-                    "frame_index": frame_idx,
-                    "bbox_xyxy": bbox,
-                    "mask_path": str(mask_path),
-                    "overlay_path": str(overlay_path),
-                }
-            )
-            seen.add(frame_idx)
-    finally:
-        try:
-            predictor.handle_request(request={"type": "close_session", "session_id": session_id})
-        except Exception:
-            pass
-
-    return records, {"session_id": session_id, "point_xy": point_xy, "point_norm": point_norm}
+    x, y = point_xy
+    r = 7
+    draw.ellipse((x - r, y - r, x + r, y + r), fill="yellow", outline="black", width=2)
+    draw.rectangle(tuple(point_box_xyxy), outline="red", width=2)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(output_path)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run SAM 3.1 ModelScope video point-prompt smoke test.")
-    parser.add_argument("--input", type=Path, default=DEFAULT_INPUT, help="Path to a VIDEO file.")
-    parser.add_argument("--point", type=float, nargs=2, metavar=("X", "Y"), help="Positive point in first-frame pixels. Defaults to frame center.")
+    parser = argparse.ArgumentParser(description="Run SAM 3.1 ModelScope tiny-box visual prompt smoke test.")
+    parser.add_argument("--input", type=Path, default=DEFAULT_INPUT, help="Path to a VIDEO file. The first frame is used.")
+    parser.add_argument("--point", type=float, nargs=2, metavar=("X", "Y"), help="Point in first-frame pixels. Defaults to frame center.")
+    parser.add_argument("--box-size-px", type=float, default=8.0, help="Tiny square box size centered on --point.")
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID, help="ModelScope model id.")
     parser.add_argument("--cache-dir", type=Path, default=None, help="Optional ModelScope cache directory.")
     parser.add_argument("--checkpoint", type=Path, default=None, help="Optional explicit checkpoint path.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--confidence-threshold", type=float, default=0.0001)
+    parser.add_argument("--max-masks", type=int, default=8)
     parser.add_argument("--device", default=None, choices=("cpu", "cuda", "mps"))
-    parser.add_argument("--version", default="3.1")
-    parser.add_argument("--obj-id", type=int, default=0)
-    parser.add_argument("--max-frames", type=int, default=16)
-    parser.add_argument("--compile", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--warm-up", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--async-loading-frames", action=argparse.BooleanOptionalAction, default=False)
     return parser.parse_args()
 
 
@@ -384,27 +326,35 @@ def main() -> None:
     args = parse_args()
     _validate_video_path(args.input)
     torch = _load_torch()
-    builder = _load_sam3_video_builder()
+    build_sam3_image_model, Sam3Processor = _load_sam3_image_builder()
 
     device = args.device or _auto_device(torch)
-    width, height = _frame_size(args.input)
-    point_xy = [float(args.point[0]), float(args.point[1])] if args.point else [width / 2.0, height / 2.0]
-
     model_dir = _download_model(args.model_id, args.cache_dir)
     checkpoint_path = args.checkpoint or _find_checkpoint(model_dir)
-    predictor, build_kwargs = _build_video_predictor(builder, checkpoint_path, device, args)
+
+    image = _load_first_frame(args.input)
+    width, height = image.size
+    point_xy = [float(args.point[0]), float(args.point[1])] if args.point else [width / 2.0, height / 2.0]
+    normalized_box = _point_to_normalized_box(point_xy, width, height, args.box_size_px)
+    half = args.box_size_px / 2.0
+    point_box_xyxy = [
+        max(0.0, point_xy[0] - half),
+        max(0.0, point_xy[1] - half),
+        min(float(width), point_xy[0] + half),
+        min(float(height), point_xy[1] + half),
+    ]
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    records, prompt_metadata = _run_point_prompt_tracking(
-        predictor=predictor,
-        video_path=args.input,
-        point_xy=point_xy,
-        width=width,
-        height=height,
-        obj_id=args.obj_id,
-        max_frames=args.max_frames,
-        output_dir=args.output_dir,
-    )
+    image.save(args.output_dir / "input_frame.jpg")
+
+    model, build_kwargs = _build_image_model(build_sam3_image_model, checkpoint_path, device)
+    processor = _build_processor(Sam3Processor, model, args.confidence_threshold)
+    output = _run_box_visual_prompt(processor, image, normalized_box)
+
+    masks, records = _records_from_output(output, args.max_masks)
+    for idx, mask in enumerate(masks):
+        _save_mask_png(mask, args.output_dir / f"mask_{idx:02d}.png")
+    _save_overlay(image, masks, point_xy, point_box_xyxy, args.output_dir / "overlay.jpg")
 
     metadata = {
         "model_id": args.model_id,
@@ -415,17 +365,21 @@ def main() -> None:
         "build_kwargs": {key: str(value) for key, value in build_kwargs.items()},
         "device": device,
         "input_video": str(args.input),
-        "frame_size": [width, height],
-        "obj_id": args.obj_id,
-        "prompt": prompt_metadata,
-        "num_frames": len(records),
-        "frames": records,
+        "frame_index": 0,
+        "point_xy": point_xy,
+        "box_size_px": args.box_size_px,
+        "point_box_xyxy": point_box_xyxy,
+        "normalized_box_cxcywh": normalized_box,
+        "confidence_threshold": args.confidence_threshold,
+        "num_masks": len(masks),
+        "detections": records,
+        "output_keys": sorted(output.keys()),
     }
-    result_path = args.output_dir / "result.json"
-    result_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-    print(f"Wrote SAM3.1 point-prompt outputs to: {args.output_dir}")
-    print(f"Point: {point_xy} pixels")
-    print(f"Tracked frames: {len(records)}")
+    (args.output_dir / "result.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    print(f"Wrote SAM3.1 tiny-box prompt outputs to: {args.output_dir}")
+    print(f"Input video: {args.input} (used frame 0)")
+    print(f"Point: {point_xy}; box xyxy: {point_box_xyxy}; normalized cxcywh: {normalized_box}")
+    print(f"Masks: {len(masks)}")
 
 
 if __name__ == "__main__":
