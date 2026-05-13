@@ -106,15 +106,28 @@ def _build_video_predictor(builder, checkpoint_path: Path | None, device: str, a
     torch = _load_torch()
     signature = inspect.signature(builder)
     kwargs: dict[str, Any] = {}
-    if checkpoint_path is not None:
-        for name in ("checkpoint_path", "ckpt_path", "checkpoint"):
-            if name in signature.parameters:
-                kwargs[name] = str(checkpoint_path)
-                break
-        if "load_from_HF" in signature.parameters:
-            kwargs["load_from_HF"] = False
-        if "load_from_hf" in signature.parameters:
-            kwargs["load_from_hf"] = False
+    if checkpoint_path is None:
+        raise RuntimeError(
+            "ModelScope download did not contain a SAM3 checkpoint. "
+            "Refusing to call the SAM3 builder without a local checkpoint because "
+            "that may fall back to Hugging Face. Pass --checkpoint explicitly if needed."
+        )
+
+    checkpoint_arg_set = False
+    for name in ("checkpoint_path", "ckpt_path", "checkpoint"):
+        if name in signature.parameters:
+            kwargs[name] = str(checkpoint_path)
+            checkpoint_arg_set = True
+            break
+    if not checkpoint_arg_set:
+        raise RuntimeError(
+            "SAM3 video builder does not expose a known checkpoint argument "
+            f"(signature: {signature}). Refusing to use a non-ModelScope fallback."
+        )
+    if "load_from_HF" in signature.parameters:
+        kwargs["load_from_HF"] = False
+    if "load_from_hf" in signature.parameters:
+        kwargs["load_from_hf"] = False
     if "version" in signature.parameters:
         kwargs["version"] = args.version
     if "gpus_to_use" in signature.parameters and device.startswith("cuda"):
@@ -395,6 +408,8 @@ def main() -> None:
 
     metadata = {
         "model_id": args.model_id,
+        "model_source": "modelscope",
+        "modelscope_url": f"https://modelscope.cn/models/{args.model_id}",
         "model_dir": str(model_dir),
         "checkpoint_path": str(checkpoint_path) if checkpoint_path else None,
         "build_kwargs": {key: str(value) for key, value in build_kwargs.items()},
