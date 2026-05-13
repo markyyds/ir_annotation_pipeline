@@ -67,10 +67,11 @@ def _download_model(model_id: str, cache_dir: Path | None) -> Path:
 
 def _load_transformers_tracker(model_dir: Path, device: str, torch_dtype: str):
     try:
-        from transformers import AutoModel, AutoProcessor
+        from transformers import Sam3TrackerModel, Sam3TrackerProcessor
     except ImportError as exc:
         raise RuntimeError(
-            "Missing dependency 'transformers'. Install a SAM3-tracker-capable version, for example:\n"
+            "Missing dependency 'transformers' with Sam3TrackerModel/Sam3TrackerProcessor. "
+            "Install a SAM3-tracker-capable version, for example:\n"
             "  python -m pip install 'transformers>=4.57.1' accelerate"
         ) from exc
 
@@ -81,9 +82,8 @@ def _load_transformers_tracker(model_dir: Path, device: str, torch_dtype: str):
         "fp16": torch.float16,
         "bf16": torch.bfloat16,
     }[torch_dtype]
-    model = AutoModel.from_pretrained(
+    model = Sam3TrackerModel.from_pretrained(
         str(model_dir),
-        trust_remote_code=True,
         local_files_only=True,
         torch_dtype=dtype if dtype != "auto" else None,
     )
@@ -91,9 +91,8 @@ def _load_transformers_tracker(model_dir: Path, device: str, torch_dtype: str):
         model = model.to(device)
     if hasattr(model, "eval"):
         model.eval()
-    processor = AutoProcessor.from_pretrained(
+    processor = Sam3TrackerProcessor.from_pretrained(
         str(model_dir),
-        trust_remote_code=True,
         local_files_only=True,
     )
     return model, processor
@@ -155,22 +154,24 @@ def _mask_to_bbox(mask: Any) -> list[float] | None:
     return [float(xs.min()), float(ys.min()), float(xs.max() + 1), float(ys.max() + 1)]
 
 
-def _candidate_masks_from_output(processor, outputs, original_size: tuple[int, int], binarize: bool):
+def _candidate_masks_from_output(processor, outputs, original_sizes, binarize: bool):
     np = _require("numpy", "python -m pip install numpy")
     if not hasattr(outputs, "pred_masks"):
         available = sorted(name for name in dir(outputs) if not name.startswith("_"))
         raise RuntimeError(f"SAM3 tracker output does not expose pred_masks. Available fields: {available}")
 
-    masks = outputs.pred_masks
-    if hasattr(processor, "post_process_masks"):
+    try:
         processed = processor.post_process_masks(
-            [masks],
-            original_sizes=[list(original_size)],
+            outputs.pred_masks.cpu(),
+            original_sizes.cpu() if hasattr(original_sizes, "cpu") else original_sizes,
             binarize=binarize,
         )[0]
-        masks_np = _to_numpy(processed)
-    else:
-        masks_np = _to_numpy(masks)
+    except TypeError:
+        processed = processor.post_process_masks(
+            outputs.pred_masks.cpu(),
+            original_sizes.cpu() if hasattr(original_sizes, "cpu") else original_sizes,
+        )[0]
+    masks_np = _to_numpy(processed)
 
     masks_np = np.asarray(masks_np).squeeze()
     if masks_np.ndim == 2:
@@ -201,7 +202,6 @@ def _run_tracker_point_prompt(
     binarize: bool,
 ) -> tuple[list[Any], list[float | None], dict[str, Any]]:
     torch = _load_torch()
-    width, height = image.size
     inputs = processor(
         images=image,
         input_points=[[[[float(point_xy[0]), float(point_xy[1])]]]],
@@ -215,11 +215,12 @@ def _run_tracker_point_prompt(
         except TypeError:
             outputs = model(**inputs)
 
-    masks = _candidate_masks_from_output(processor, outputs, (height, width), binarize)
+    masks = _candidate_masks_from_output(processor, outputs, inputs["original_sizes"], binarize)
     scores = _scores_from_output(outputs)
     metadata = {
         "input_point_xy": point_xy,
         "input_points_shape": list(inputs["input_points"].shape) if "input_points" in inputs else None,
+        "original_sizes": _to_numpy(inputs["original_sizes"]).tolist() if "original_sizes" in inputs else None,
         "output_fields": sorted(name for name in dir(outputs) if not name.startswith("_")),
     }
     return masks, scores, metadata
