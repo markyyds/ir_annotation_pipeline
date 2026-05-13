@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Smoke-test SAM 3.1 ModelScope image visual prompts from a video point.
+"""Smoke-test SAM 3.1 ModelScope image text prompts on a video's first frame.
 
 This script downloads facebook/sam3.1 from ModelScope, extracts the first
-frame of a video, expands a point into a tiny normalized bbox, and feeds that
-bbox to SAM3 as a positive geometric visual prompt.
+frame of a video, and feeds the requested text prompt to SAM3.
 """
 
 from __future__ import annotations
@@ -192,15 +191,7 @@ def _first_present(mapping: dict[str, Any], names: tuple[str, ...]):
     return None
 
 
-def _point_to_normalized_box(point_xy: list[float], width: int, height: int, box_size_px: float) -> list[float]:
-    cx = max(0.0, min(float(point_xy[0]), float(width))) / max(1.0, float(width))
-    cy = max(0.0, min(float(point_xy[1]), float(height))) / max(1.0, float(height))
-    bw = max(1.0, float(box_size_px)) / max(1.0, float(width))
-    bh = max(1.0, float(box_size_px)) / max(1.0, float(height))
-    return [cx, cy, bw, bh]
-
-
-def _run_box_visual_prompt(processor, image, normalized_box: list[float]) -> dict[str, Any]:
+def _run_text_prompt(processor, image, prompt: str) -> dict[str, Any]:
     torch = _load_torch()
     autocast_context = (
         torch.autocast("cuda", dtype=torch.bfloat16)
@@ -209,16 +200,10 @@ def _run_box_visual_prompt(processor, image, normalized_box: list[float]) -> dic
     )
     with torch.inference_mode(), autocast_context:
         state = processor.set_image(image)
-        if not hasattr(processor, "add_geometric_prompt"):
-            raise RuntimeError(
-                "This SAM3 processor does not expose add_geometric_prompt. "
-                f"Available public methods: {[name for name in dir(processor) if not name.startswith('_')]}"
-            )
-        return processor.add_geometric_prompt(
-            state=state,
-            box=normalized_box,
-            label=True,
-        )
+        try:
+            return processor.set_text_prompt(state=state, prompt=prompt)
+        except TypeError:
+            return processor.set_text_prompt(prompt=prompt, state=state)
 
 
 def _null_context():
@@ -276,8 +261,8 @@ def _save_mask_png(mask, output_path: Path) -> None:
     Image.fromarray((mask > 0).astype("uint8") * 255).save(output_path)
 
 
-def _save_overlay(image, masks, point_xy: list[float], point_box_xyxy: list[float], output_path: Path) -> None:
-    Image, ImageDraw = _load_pil()
+def _save_overlay(image, masks, output_path: Path) -> None:
+    Image, _ImageDraw = _load_pil()
     np = _require("numpy", "python -m pip install numpy")
 
     overlay = np.asarray(image).copy()
@@ -297,21 +282,14 @@ def _save_overlay(image, masks, point_xy: list[float], point_box_xyxy: list[floa
             continue
         color = colors[idx % len(colors)]
         overlay[mask_bool] = (0.55 * overlay[mask_bool] + 0.45 * color).astype(np.uint8)
-    image = Image.fromarray(overlay)
-    draw = ImageDraw.Draw(image)
-    x, y = point_xy
-    r = 7
-    draw.ellipse((x - r, y - r, x + r, y + r), fill="yellow", outline="black", width=2)
-    draw.rectangle(tuple(point_box_xyxy), outline="red", width=2)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    image.save(output_path)
+    Image.fromarray(overlay).save(output_path)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run SAM 3.1 ModelScope tiny-box visual prompt smoke test.")
+    parser = argparse.ArgumentParser(description="Run SAM 3.1 ModelScope text-prompt smoke test.")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT, help="Path to a VIDEO file. The first frame is used.")
-    parser.add_argument("--point", type=float, nargs=2, metavar=("X", "Y"), help="Point in first-frame pixels. Defaults to frame center.")
-    parser.add_argument("--box-size-px", type=float, default=8.0, help="Tiny square box size centered on --point.")
+    parser.add_argument("--prompt", default="object", help="Text prompt passed to SAM3.")
     parser.add_argument("--model-id", default=DEFAULT_MODEL_ID, help="ModelScope model id.")
     parser.add_argument("--cache-dir", type=Path, default=None, help="Optional ModelScope cache directory.")
     parser.add_argument("--checkpoint", type=Path, default=None, help="Optional explicit checkpoint path.")
@@ -333,28 +311,17 @@ def main() -> None:
     checkpoint_path = args.checkpoint or _find_checkpoint(model_dir)
 
     image = _load_first_frame(args.input)
-    width, height = image.size
-    point_xy = [float(args.point[0]), float(args.point[1])] if args.point else [width / 2.0, height / 2.0]
-    normalized_box = _point_to_normalized_box(point_xy, width, height, args.box_size_px)
-    half = args.box_size_px / 2.0
-    point_box_xyxy = [
-        max(0.0, point_xy[0] - half),
-        max(0.0, point_xy[1] - half),
-        min(float(width), point_xy[0] + half),
-        min(float(height), point_xy[1] + half),
-    ]
-
     args.output_dir.mkdir(parents=True, exist_ok=True)
     image.save(args.output_dir / "input_frame.jpg")
 
     model, build_kwargs = _build_image_model(build_sam3_image_model, checkpoint_path, device)
     processor = _build_processor(Sam3Processor, model, args.confidence_threshold)
-    output = _run_box_visual_prompt(processor, image, normalized_box)
+    output = _run_text_prompt(processor, image, args.prompt)
 
     masks, records = _records_from_output(output, args.max_masks)
     for idx, mask in enumerate(masks):
         _save_mask_png(mask, args.output_dir / f"mask_{idx:02d}.png")
-    _save_overlay(image, masks, point_xy, point_box_xyxy, args.output_dir / "overlay.jpg")
+    _save_overlay(image, masks, args.output_dir / "overlay.jpg")
 
     metadata = {
         "model_id": args.model_id,
@@ -366,19 +333,16 @@ def main() -> None:
         "device": device,
         "input_video": str(args.input),
         "frame_index": 0,
-        "point_xy": point_xy,
-        "box_size_px": args.box_size_px,
-        "point_box_xyxy": point_box_xyxy,
-        "normalized_box_cxcywh": normalized_box,
+        "prompt": args.prompt,
         "confidence_threshold": args.confidence_threshold,
         "num_masks": len(masks),
         "detections": records,
         "output_keys": sorted(output.keys()),
     }
     (args.output_dir / "result.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-    print(f"Wrote SAM3.1 tiny-box prompt outputs to: {args.output_dir}")
+    print(f"Wrote SAM3.1 text-prompt outputs to: {args.output_dir}")
     print(f"Input video: {args.input} (used frame 0)")
-    print(f"Point: {point_xy}; box xyxy: {point_box_xyxy}; normalized cxcywh: {normalized_box}")
+    print(f"Prompt: {args.prompt}")
     print(f"Masks: {len(masks)}")
 
 
