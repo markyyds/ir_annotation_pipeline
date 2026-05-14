@@ -148,6 +148,65 @@ def load_vlm_stage_target(vlm_stage_json: Path) -> tuple[dict[str, Any], dict[st
     return normalized_target, payload
 
 
+def episode_args(base_args: argparse.Namespace, parquet_path: Path, output_root: Path) -> argparse.Namespace:
+    args = argparse.Namespace(**vars(base_args))
+    args.parquet = parquet_path
+    args.video = parquet_path.with_suffix(".mp4")
+    args.output_dir = output_root / parquet_path.stem
+    if args.vlm_stage_json is None:
+        stage_root = args.vlm_stage_root or output_root
+        candidate = stage_root / parquet_path.stem / "vlm_stage.json"
+        if candidate.exists():
+            args.vlm_stage_json = candidate
+        elif args.vlm_stage_root is not None:
+            raise FileNotFoundError(f"Missing cached VLM stage JSON: {candidate}")
+    return args
+
+
+def run_batch(args: argparse.Namespace) -> None:
+    if args.single_episode:
+        if args.output_dir is None:
+            args.output_dir = default_output_dir(args.vlm_model)
+        run_pipeline(args)
+        return
+
+    output_root = args.output_dir or default_output_dir(args.vlm_model)
+    output_root.mkdir(parents=True, exist_ok=True)
+    parquets = sorted(args.test_data.glob(args.pattern))
+    if not parquets:
+        raise FileNotFoundError(f"No parquet files matched: {args.test_data / args.pattern}")
+
+    context = RuntimeContext(args)
+    summary_path = output_root / "video_object_detection_summary.jsonl"
+    with summary_path.open("w", encoding="utf-8") as handle:
+        for parquet_path in parquets:
+            ep_args = episode_args(args, parquet_path, output_root)
+            record: dict[str, Any] = {"episode_id": parquet_path.stem, "parquet_path": str(parquet_path), "video_path": str(ep_args.video)}
+            print(f"[{parquet_path.stem}] running object detection pipeline")
+            try:
+                result = run_pipeline(ep_args, context)
+                payload = result["payload"]
+                record.update(
+                    {
+                        "status": "ok",
+                        "output_json": str(result["output_json"]),
+                        "vlm_stage_json": payload.get("vlm_stage_json"),
+                        "target_object": payload["vlm_target"]["target_object"],
+                        "referring_expression": payload["vlm_target"]["referring_expression"],
+                        "selected_bbox_xyxy": payload.get("selected_bbox_xyxy"),
+                        "total_model_seconds": payload["timing_seconds"]["total_model_seconds"],
+                    }
+                )
+            except Exception as exc:
+                if args.stop_on_error:
+                    raise
+                record.update({"status": "skipped", "error": str(exc)})
+                print(f"[{parquet_path.stem}] skipped: {exc}")
+            handle.write(json.dumps(common.json_ready(record), ensure_ascii=False) + "\n")
+            handle.flush()
+    print(f"Wrote object detection summary: {summary_path}")
+
+
 def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None) -> dict[str, Any]:
     context = context or RuntimeContext(args)
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -343,12 +402,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--video", type=Path, default=DEFAULT_TEST_DATA / "episode_000000.mp4")
     parser.add_argument("--parquet", type=Path, default=DEFAULT_TEST_DATA / "episode_000000.parquet")
     parser.add_argument("--output-dir", type=Path, help="Defaults to video_object_detection_mapper/outputs/{vlm_model}.")
+    parser.add_argument("--test-data", type=Path, default=DEFAULT_TEST_DATA, help="Directory with episode_*.parquet and matching .mp4 files.")
+    parser.add_argument("--pattern", default="episode_*.parquet")
+    parser.add_argument("--single-episode", action="store_true", help="Use --video/--parquet instead of iterating --test-data.")
+    parser.add_argument("--stop-on-error", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--task-instruction-column", default=DEFAULT_TASK_INSTRUCTION_COLUMN)
     parser.add_argument("--first-video-frame-index", type=int, default=0)
     parser.add_argument("--last-video-frame-index", type=int, default=-1)
     parser.add_argument("--device", default="auto")
 
     parser.add_argument("--vlm-stage-json", type=Path, help="Reuse a saved run_vlm_stage.py output and skip the VLM request.")
+    parser.add_argument(
+        "--vlm-stage-root",
+        type=Path,
+        help="Batch cache root containing {episode_id}/vlm_stage.json. Defaults to the pipeline output root.",
+    )
     parser.add_argument("--vlm-model", default=os.environ.get("MODEL_NAME", "qwen3-max"))
     parser.add_argument("--vllm-base-url", default=os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1"))
     parser.add_argument("--vllm-api-key", default=os.environ.get("VLLM_API_KEY", "EMPTY"))
@@ -404,9 +472,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.output_dir is None:
-        args.output_dir = default_output_dir(args.vlm_model)
-    run_pipeline(args)
+    run_batch(args)
 
 
 if __name__ == "__main__":
