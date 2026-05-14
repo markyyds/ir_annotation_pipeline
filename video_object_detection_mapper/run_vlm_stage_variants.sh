@@ -12,7 +12,7 @@ VLM_MODELS="${VLM_MODELS:-qwen3-max}"
 
 for VLM_MODEL in ${VLM_MODELS}; do
   SAFE_MODEL="${VLM_MODEL//\//_}"
-  "${PYTHON_BIN}" "${SCRIPT_DIR}/pipeline.py" \
+  "${PYTHON_BIN}" "${SCRIPT_DIR}/run_vlm_stage.py" \
     --video "${VIDEO}" \
     --parquet "${PARQUET}" \
     --vlm-model "${VLM_MODEL}" \

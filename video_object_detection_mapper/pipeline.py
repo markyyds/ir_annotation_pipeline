@@ -75,6 +75,20 @@ class RuntimeContext:
         return self._sam3_video[1], self._sam3_video[2]
 
 
+def safe_name(value: str) -> str:
+    safe = []
+    for char in str(value):
+        if char.isalnum() or char in ("-", "_", "."):
+            safe.append(char)
+        else:
+            safe.append("_")
+    return "".join(safe).strip("_") or "none"
+
+
+def default_output_dir(vlm_model: str) -> Path:
+    return DEFAULT_OUTPUT_ROOT / safe_name(vlm_model)
+
+
 def materialize_tracking_outputs(args, context: RuntimeContext, frame_records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     output_frames = []
     mask_dir = args.output_dir / "tracking_masks"
@@ -110,6 +124,30 @@ def materialize_tracking_outputs(args, context: RuntimeContext, frame_records: l
     return output_frames
 
 
+def load_vlm_stage_target(vlm_stage_json: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    payload = json.loads(vlm_stage_json.read_text(encoding="utf-8"))
+    target = payload.get("vlm_target") if isinstance(payload, dict) else None
+    if target is None and isinstance(payload, dict):
+        target = payload
+    if not isinstance(target, dict):
+        raise RuntimeError(f"Invalid VLM stage JSON: missing object payload in {vlm_stage_json}")
+
+    target_object = str(target.get("target_object") or target.get("object") or target.get("target") or "").strip()
+    referring_expression = str(target.get("referring_expression") or target.get("referring") or target_object).strip()
+    if not target_object:
+        raise RuntimeError(f"Invalid VLM stage JSON: missing target_object in {vlm_stage_json}")
+    if not referring_expression:
+        referring_expression = target_object
+
+    normalized_target = dict(target)
+    normalized_target["target_object"] = target_object
+    normalized_target["referring_expression"] = referring_expression
+    normalized_target["loaded_from_vlm_stage_json"] = str(vlm_stage_json)
+    if "model" not in normalized_target and isinstance(payload, dict) and payload.get("vlm_model"):
+        normalized_target["model"] = payload["vlm_model"]
+    return normalized_target, payload
+
+
 def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None) -> dict[str, Any]:
     context = context or RuntimeContext(args)
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -123,16 +161,21 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
     )
     first_image = context.Image.open(first_frame_path).convert("RGB")
 
-    started = time.perf_counter()
-    target = vlm.extract_target_and_referring_expression(
-        context.vlm_client(args),
-        instruction,
-        first_frame_path,
-        last_frame_path,
-        frame_width,
-        frame_height,
-    )
-    timing["vlm_seconds"] = time.perf_counter() - started
+    vlm_stage_payload = None
+    if args.vlm_stage_json:
+        target, vlm_stage_payload = load_vlm_stage_target(args.vlm_stage_json)
+        timing["vlm_seconds"] = 0.0
+    else:
+        started = time.perf_counter()
+        target = vlm.extract_target_and_referring_expression(
+            context.vlm_client(args),
+            instruction,
+            first_frame_path,
+            last_frame_path,
+            frame_width,
+            frame_height,
+        )
+        timing["vlm_seconds"] = time.perf_counter() - started
 
     molmo_model, molmo_processor, molmo_dir, molmo_device_map = context.molmopoint(args)
     started = time.perf_counter()
@@ -260,6 +303,8 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
             "width": frame_width,
             "height": frame_height,
         },
+        "vlm_stage_json": str(args.vlm_stage_json) if args.vlm_stage_json else None,
+        "vlm_stage_payload": vlm_stage_payload,
         "vlm_target": target,
         "molmopoint": point_payload,
         "sam3_candidates": {
@@ -297,12 +342,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Modular VLM/MolmoPoint/SAM3/SigLIP video object detection pipeline.")
     parser.add_argument("--video", type=Path, default=DEFAULT_TEST_DATA / "episode_000000.mp4")
     parser.add_argument("--parquet", type=Path, default=DEFAULT_TEST_DATA / "episode_000000.parquet")
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_ROOT / "episode_000000")
+    parser.add_argument("--output-dir", type=Path, help="Defaults to video_object_detection_mapper/outputs/{vlm_model}.")
     parser.add_argument("--task-instruction-column", default=DEFAULT_TASK_INSTRUCTION_COLUMN)
     parser.add_argument("--first-video-frame-index", type=int, default=0)
     parser.add_argument("--last-video-frame-index", type=int, default=-1)
     parser.add_argument("--device", default="auto")
 
+    parser.add_argument("--vlm-stage-json", type=Path, help="Reuse a saved run_vlm_stage.py output and skip the VLM request.")
     parser.add_argument("--vlm-model", default=os.environ.get("MODEL_NAME", "qwen3-max"))
     parser.add_argument("--vllm-base-url", default=os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1"))
     parser.add_argument("--vllm-api-key", default=os.environ.get("VLLM_API_KEY", "EMPTY"))
@@ -358,6 +404,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.output_dir is None:
+        args.output_dir = default_output_dir(args.vlm_model)
     run_pipeline(args)
 
 
