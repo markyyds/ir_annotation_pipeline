@@ -1,0 +1,365 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from video_object_detection_mapper import common, molmopoint, sam3_candidates, sam3_tracking, siglip_selector, vlm
+
+
+DEFAULT_TEST_DATA = PROJECT_ROOT / "test_data"
+DEFAULT_OUTPUT_ROOT = SCRIPT_DIR / "outputs"
+DEFAULT_TASK_INSTRUCTION_COLUMN = "other_information.language_instruction_2"
+DEFAULT_MOLMOPOINT_MODEL = "allenai/MolmoPoint-8B"
+DEFAULT_SAM3_MODEL = "facebook/sam3.1"
+DEFAULT_SIGLIP_MODEL = "google/siglip-base-patch16-224"
+
+
+class RuntimeContext:
+    def __init__(self, args: argparse.Namespace):
+        self.np, self.torch, self.imageio, self.Image, self.ImageDraw = common.load_common_modules()
+        self.device = common.auto_device(self.torch, args.device)
+        self._vlm_client = None
+        self._molmopoint = None
+        self._sam3_candidate = None
+        self._siglip = None
+        self._sam3_video = None
+
+    def vlm_client(self, args):
+        if self._vlm_client is None:
+            self._vlm_client = vlm.build_vllm_json_client(args)
+        return self._vlm_client
+
+    def molmopoint(self, args):
+        key = (args.molmopoint_model, args.molmopoint_cache_dir, args.molmopoint_device_map, self.device)
+        if self._molmopoint is None or self._molmopoint[0] != key:
+            model, processor, model_dir, device_map = molmopoint.load_model_and_processor(args, self.device)
+            self._molmopoint = (key, model, processor, model_dir, device_map)
+        return self._molmopoint[1], self._molmopoint[2], self._molmopoint[3], self._molmopoint[4]
+
+    def sam3_candidate(self, args):
+        key = (args.sam3_candidate_model, args.sam3_candidate_cache_dir, args.sam3_candidate_torch_dtype, self.device)
+        if self._sam3_candidate is None or self._sam3_candidate[0] != key:
+            model, processor, model_dir = sam3_candidates.load_tracker(args, self.torch, self.device)
+            self._sam3_candidate = (key, model, processor, model_dir)
+        return self._sam3_candidate[1], self._sam3_candidate[2], self._sam3_candidate[3]
+
+    def siglip(self, args):
+        key = (args.siglip_model, args.siglip_torch_dtype, self.device)
+        if self._siglip is None or self._siglip[0] != key:
+            model, processor = siglip_selector.load_siglip(args, self.torch, self.device)
+            self._siglip = (key, model, processor)
+        return self._siglip[1], self._siglip[2]
+
+    def sam3_video(self, args):
+        key = (
+            args.sam3_video_model,
+            args.sam3_video_cache_dir,
+            args.sam3_video_checkpoint,
+            args.sam3_video_version,
+            self.device,
+        )
+        if self._sam3_video is None or self._sam3_video[0] != key:
+            predictor, metadata = sam3_tracking.load_video_predictor(args, self.torch, self.device)
+            self._sam3_video = (key, predictor, metadata)
+        return self._sam3_video[1], self._sam3_video[2]
+
+
+def materialize_tracking_outputs(args, context: RuntimeContext, frame_records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    output_frames = []
+    mask_dir = args.output_dir / "tracking_masks"
+    bbox_dir = args.output_dir / "tracking_bboxes"
+    reader = None
+    if args.save_tracking_bbox_images:
+        bbox_dir.mkdir(parents=True, exist_ok=True)
+        reader = context.imageio.get_reader(str(args.video))
+    try:
+        for record in frame_records:
+            frame_idx = int(record["frame_index"])
+            output_record = {"frame_index": frame_idx, "bbox_xyxy": record.get("bbox_xyxy")}
+            if args.save_tracking_masks:
+                mask_path = mask_dir / f"frame_{frame_idx:06d}_mask.png"
+                common.save_mask_png(context.Image, context.np, record["mask"], mask_path)
+                output_record["mask_path"] = str(mask_path)
+            if reader is not None:
+                try:
+                    image = context.Image.fromarray(reader.get_data(frame_idx)).convert("RGB")
+                    draw = context.ImageDraw.Draw(image)
+                    bbox = record.get("bbox_xyxy")
+                    if bbox is not None:
+                        draw.rectangle(tuple(bbox), outline="red", width=3)
+                    image_path = bbox_dir / f"frame_{frame_idx:06d}_bbox.jpg"
+                    image.save(image_path)
+                    output_record["bbox_image_path"] = str(image_path)
+                except Exception:
+                    pass
+            output_frames.append(output_record)
+    finally:
+        if reader is not None:
+            reader.close()
+    return output_frames
+
+
+def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None) -> dict[str, Any]:
+    context = context or RuntimeContext(args)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    timing: dict[str, float] = {}
+
+    instruction = common.get_task_instruction(args.parquet, args.task_instruction_column)
+    first_frame_path, last_frame_path, frame_width, frame_height, first_idx, last_idx = common.save_context_frames(
+        args,
+        context.imageio,
+        context.Image,
+    )
+    first_image = context.Image.open(first_frame_path).convert("RGB")
+
+    started = time.perf_counter()
+    target = vlm.extract_target_and_referring_expression(
+        context.vlm_client(args),
+        instruction,
+        first_frame_path,
+        last_frame_path,
+        frame_width,
+        frame_height,
+    )
+    timing["vlm_seconds"] = time.perf_counter() - started
+
+    molmo_model, molmo_processor, molmo_dir, molmo_device_map = context.molmopoint(args)
+    started = time.perf_counter()
+    point_payload = molmopoint.run_pointing(
+        args,
+        context.np,
+        context.torch,
+        context.Image,
+        context.ImageDraw,
+        molmo_model,
+        molmo_processor,
+        first_frame_path,
+        target["referring_expression"],
+        frame_width,
+        frame_height,
+        context.device,
+    )
+    point_payload["model_dir"] = molmo_dir
+    point_payload["device_map"] = molmo_device_map
+    timing["molmopoint_seconds"] = time.perf_counter() - started
+
+    sam3_model, sam3_processor, sam3_model_dir = context.sam3_candidate(args)
+    started = time.perf_counter()
+    masks, scores, sam3_prompt_metadata = sam3_candidates.run_point_prompt(
+        args,
+        context.np,
+        context.torch,
+        sam3_model,
+        sam3_processor,
+        first_image,
+        point_payload["center_xy"],
+        context.device,
+    )
+    detections = sam3_candidates.save_candidates(
+        args,
+        context.Image,
+        context.ImageDraw,
+        context.np,
+        first_image,
+        masks,
+        scores,
+        point_payload["center_xy"],
+    )
+    visible_masks = masks[: args.sam3_candidate_max_masks]
+    visible_scores = scores[: args.sam3_candidate_max_masks]
+    timing["sam3_candidate_seconds"] = time.perf_counter() - started
+
+    siglip_model, siglip_processor = context.siglip(args)
+    started = time.perf_counter()
+    candidate_rankings, selected_detection = siglip_selector.rank_candidates(
+        args,
+        context.np,
+        context.torch,
+        context.Image,
+        first_image,
+        detections,
+        visible_masks,
+        visible_scores,
+        point_payload["center_xy"],
+        target["target_object"],
+        siglip_model,
+        siglip_processor,
+        context.device,
+    )
+    timing["siglip_seconds"] = time.perf_counter() - started
+    if selected_detection is None:
+        raise RuntimeError("SigLIP did not select a valid SAM3 candidate mask.")
+
+    selected_idx = int(selected_detection["index"])
+    selected_mask = visible_masks[selected_idx]
+    selected_bbox = selected_detection.get("bbox_from_mask")
+    selected_mask_path = args.output_dir / "selected_mask.png"
+    selected_overlay_path = args.output_dir / "selected_overlay.jpg"
+    common.save_mask_png(context.Image, context.np, selected_mask, selected_mask_path)
+    common.save_overlay(
+        context.Image,
+        context.ImageDraw,
+        context.np,
+        first_image,
+        selected_mask,
+        point_payload["center_xy"],
+        selected_bbox,
+        selected_overlay_path,
+    )
+    selected_detection["selected_mask_path"] = str(selected_mask_path)
+    selected_detection["selected_overlay_path"] = str(selected_overlay_path)
+
+    tracking_payload = None
+    if args.run_tracking:
+        predictor, sam3_video_metadata = context.sam3_video(args)
+        started = time.perf_counter()
+        frame_records, tracking_metadata = sam3_tracking.track_video(
+            context.np,
+            context.torch,
+            predictor,
+            args.video,
+            selected_bbox,
+            selected_mask,
+            point_payload["center_xy"],
+            frame_width,
+            frame_height,
+            args.sam3_video_obj_id,
+        )
+        tracking_frames = materialize_tracking_outputs(args, context, frame_records)
+        timing["sam3_tracking_seconds"] = time.perf_counter() - started
+        tracking_payload = {
+            **sam3_video_metadata,
+            **tracking_metadata,
+            "num_frames": len(tracking_frames),
+            "frames": tracking_frames,
+        }
+
+    timing["total_model_seconds"] = sum(timing.values())
+    payload = {
+        "status": "ok",
+        "video_path": str(args.video),
+        "parquet_path": str(args.parquet),
+        "task_instruction": instruction,
+        "vlm_model": args.vlm_model,
+        "frame_context": {
+            "first_frame_path": str(first_frame_path),
+            "last_frame_path": str(last_frame_path),
+            "first_video_frame_index": first_idx,
+            "last_video_frame_index": last_idx,
+            "width": frame_width,
+            "height": frame_height,
+        },
+        "vlm_target": target,
+        "molmopoint": point_payload,
+        "sam3_candidates": {
+            "model": args.sam3_candidate_model,
+            "model_dir": sam3_model_dir,
+            "num_candidate_masks_total": len(masks),
+            "num_candidate_masks_scored": len(visible_masks),
+            "prompt_metadata": sam3_prompt_metadata,
+            "detections": detections,
+        },
+        "siglip_selection": {
+            "model": args.siglip_model,
+            "target_object": target["target_object"],
+            "candidate_rankings": candidate_rankings,
+            "selected_detection": selected_detection,
+            "score_weights": {
+                "masked_crop_siglip": args.siglip_masked_weight,
+                "context_crop_siglip": args.siglip_context_weight,
+                "sam3_score": args.siglip_sam3_score_weight,
+                "point_inside": args.siglip_point_inside_weight,
+            },
+        },
+        "selected_bbox_xyxy": selected_bbox,
+        "tracking": tracking_payload,
+        "timing_seconds": timing,
+    }
+    output_json = args.output_dir / "video_object_detection.json"
+    output_json.write_text(json.dumps(common.json_ready(payload), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"Wrote object detection output: {output_json}")
+    print(f"Selected bbox: {selected_bbox}")
+    return {"output_json": output_json, "payload": payload}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Modular VLM/MolmoPoint/SAM3/SigLIP video object detection pipeline.")
+    parser.add_argument("--video", type=Path, default=DEFAULT_TEST_DATA / "episode_000000.mp4")
+    parser.add_argument("--parquet", type=Path, default=DEFAULT_TEST_DATA / "episode_000000.parquet")
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_ROOT / "episode_000000")
+    parser.add_argument("--task-instruction-column", default=DEFAULT_TASK_INSTRUCTION_COLUMN)
+    parser.add_argument("--first-video-frame-index", type=int, default=0)
+    parser.add_argument("--last-video-frame-index", type=int, default=-1)
+    parser.add_argument("--device", default="auto")
+
+    parser.add_argument("--vlm-model", default=os.environ.get("MODEL_NAME", "qwen3-max"))
+    parser.add_argument("--vllm-base-url", default=os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1"))
+    parser.add_argument("--vllm-api-key", default=os.environ.get("VLLM_API_KEY", "EMPTY"))
+    parser.add_argument("--vlm-max-new-tokens", type=int, default=2048)
+    parser.add_argument("--vlm-temperature", type=float, default=0.0)
+    parser.add_argument("--vlm-top-p", type=float, default=0.95)
+    parser.add_argument("--vlm-top-k", type=int, default=20)
+    parser.add_argument("--vlm-min-p", type=float, default=0.0)
+    parser.add_argument("--vlm-presence-penalty", type=float, default=0.0)
+    parser.add_argument("--vlm-repetition-penalty", type=float, default=1.0)
+    parser.add_argument("--vlm-timeout", type=int, default=300)
+    parser.add_argument("--print-raw-response", action="store_true")
+
+    parser.add_argument("--molmopoint-model", default=DEFAULT_MOLMOPOINT_MODEL)
+    parser.add_argument("--molmopoint-cache-dir", type=Path)
+    parser.add_argument("--molmopoint-device-map", default="auto")
+    parser.add_argument("--molmopoint-max-new-tokens", type=int, default=200)
+    parser.add_argument("--molmopoint-prompt-template", default="Point to {referring_expression}")
+    parser.add_argument("--save-molmopoint-visualization", action=argparse.BooleanOptionalAction, default=True)
+
+    parser.add_argument("--sam3-candidate-model", default=DEFAULT_SAM3_MODEL)
+    parser.add_argument("--sam3-candidate-cache-dir", type=Path)
+    parser.add_argument("--sam3-candidate-torch-dtype", choices=("auto", "fp32", "fp16", "bf16"), default="auto")
+    parser.add_argument("--sam3-candidate-multimask-output", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--sam3-candidate-binarize", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--sam3-candidate-max-masks", type=int, default=8)
+
+    parser.add_argument("--siglip-model", default=DEFAULT_SIGLIP_MODEL)
+    parser.add_argument("--siglip-torch-dtype", choices=("auto", "fp32", "fp16", "bf16"), default="auto")
+    parser.add_argument("--crop-padding", type=float, default=0.35)
+    parser.add_argument("--masked-fill", type=int, default=128)
+    parser.add_argument("--min-mask-area-fraction", type=float, default=0.001)
+    parser.add_argument("--max-mask-area-fraction", type=float, default=0.8)
+    parser.add_argument("--save-candidate-crops", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--siglip-masked-weight", type=float, default=0.60)
+    parser.add_argument("--siglip-context-weight", type=float, default=0.30)
+    parser.add_argument("--siglip-sam3-score-weight", type=float, default=0.10)
+    parser.add_argument("--siglip-point-inside-weight", type=float, default=0.0)
+
+    parser.add_argument("--run-tracking", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--sam3-video-model", default=DEFAULT_SAM3_MODEL)
+    parser.add_argument("--sam3-video-cache-dir", type=Path)
+    parser.add_argument("--sam3-video-checkpoint", type=Path)
+    parser.add_argument("--sam3-video-version", default="3.1")
+    parser.add_argument("--sam3-video-obj-id", type=int, default=0)
+    parser.add_argument("--sam3-video-compile", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--sam3-video-warm-up", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--sam3-video-async-loading-frames", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--save-tracking-masks", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--save-tracking-bbox-images", action=argparse.BooleanOptionalAction, default=True)
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    run_pipeline(args)
+
+
+if __name__ == "__main__":
+    main()
