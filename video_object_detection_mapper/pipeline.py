@@ -22,7 +22,7 @@ DEFAULT_TEST_DATA = PROJECT_ROOT / "test_data"
 DEFAULT_OUTPUT_ROOT = SCRIPT_DIR / "outputs"
 DEFAULT_TASK_INSTRUCTION_COLUMN = "other_information.language_instruction_2"
 DEFAULT_MOLMOPOINT_MODEL = "allenai/MolmoPoint-8B"
-DEFAULT_SAM3_MODEL = "facebook/sam3.1"
+DEFAULT_SAM3_MODEL = "facebook/sam3"
 DEFAULT_SIGLIP_MODEL = "google/siglip-base-patch16-224"
 DEFAULT_MOLMOPOINT_PYTHON = PROJECT_ROOT / ".venv-molmopoint" / "bin" / "python"
 DEFAULT_OUTPUT_SIZE = [320, 180]
@@ -619,7 +619,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sam3-video-model", default=DEFAULT_SAM3_MODEL)
     parser.add_argument("--sam3-video-cache-dir", type=Path)
     parser.add_argument("--sam3-video-checkpoint", type=Path)
-    parser.add_argument("--sam3-video-version", default="3.1")
+    parser.add_argument("--sam3-video-version", default="3")
     parser.add_argument("--sam3-video-obj-id", type=int, default=0)
     parser.add_argument("--sam3-video-compile", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--sam3-video-warm-up", action=argparse.BooleanOptionalAction, default=False)

@@ -65,10 +65,8 @@ def snapshot_download_model(model_id: str, cache_dir: Path | None) -> Path:
         kwargs["cache_dir"] = str(cache_dir)
     return Path(snapshot_download(model_id, **kwargs))
 
-
 def move_inputs_to_device(inputs: dict[str, Any], device: str) -> dict[str, Any]:
     return {key: value.to(device) if hasattr(value, "to") else value for key, value in inputs.items()}
-
 
 def tensor_to_numpy(np, torch, value: Any):
     if value is None:

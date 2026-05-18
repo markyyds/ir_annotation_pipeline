@@ -7,6 +7,13 @@ from typing import Any
 from video_object_detection_mapper import common
 
 
+def accepts_kwarg(signature: inspect.Signature, name: str) -> bool:
+    return name in signature.parameters or any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
+
+
 def find_checkpoint(model_dir: Path) -> Path | None:
     candidates = []
     for suffix in ("*.pt", "*.pth", "*.ckpt", "*.bin", "*.safetensors"):
@@ -49,22 +56,24 @@ def load_video_predictor(args, torch, device: str):
     signature = inspect.signature(builder)
     kwargs: dict[str, Any] = {}
     for name in ("checkpoint_path", "ckpt_path", "checkpoint"):
-        if name in signature.parameters:
+        if accepts_kwarg(signature, name):
             kwargs[name] = str(checkpoint_path)
             break
-    if "load_from_HF" in signature.parameters:
+    if "load_from_HF" in signature.parameters or accepts_kwarg(signature, "load_from_HF"):
         kwargs["load_from_HF"] = False
-    if "load_from_hf" in signature.parameters:
+    if "load_from_hf" in signature.parameters or accepts_kwarg(signature, "load_from_hf"):
         kwargs["load_from_hf"] = False
-    if "version" in signature.parameters:
+    if accepts_kwarg(signature, "version"):
         kwargs["version"] = args.sam3_video_version
-    if "gpus_to_use" in signature.parameters and device.startswith("cuda"):
+    if accepts_kwarg(signature, "device"):
+        kwargs["device"] = device
+    if accepts_kwarg(signature, "gpus_to_use") and device.startswith("cuda"):
         kwargs["gpus_to_use"] = range(torch.cuda.device_count())
-    if "compile" in signature.parameters:
+    if accepts_kwarg(signature, "compile"):
         kwargs["compile"] = args.sam3_video_compile
-    if "warm_up" in signature.parameters:
+    if accepts_kwarg(signature, "warm_up"):
         kwargs["warm_up"] = args.sam3_video_warm_up
-    if "async_loading_frames" in signature.parameters:
+    if accepts_kwarg(signature, "async_loading_frames"):
         kwargs["async_loading_frames"] = args.sam3_video_async_loading_frames
     return builder(**kwargs), {"model_dir": str(model_dir), "checkpoint_path": str(checkpoint_path) if checkpoint_path else None, "builder_kwargs": kwargs}
 
