@@ -81,7 +81,6 @@ def tensor_to_numpy(np, torch, value: Any):
         return value.numpy()
     return np.asarray(value)
 
-
 def json_ready(value: Any) -> Any:
     if isinstance(value, dict):
         return {str(key): json_ready(item) for key, item in value.items()}
