@@ -17,6 +17,8 @@ def find_checkpoint(model_dir: Path) -> Path | None:
     def priority(path: Path) -> tuple[int, int, str]:
         name = path.name.lower()
         score = 0
+        if "sam3" in name:
+            score += 3
         if "sam3.1" in name or "sam31" in name:
             score += 4
         if "image" in name or "video" in name:
@@ -37,18 +39,23 @@ def load_video_predictor(args, torch, device: str):
         ) from exc
     model_dir = common.snapshot_download_model(args.sam3_video_model, args.sam3_video_cache_dir)
     checkpoint_path = args.sam3_video_checkpoint or find_checkpoint(model_dir)
+    if checkpoint_path is None:
+        raise RuntimeError(
+            f"No local SAM3 checkpoint found in ModelScope snapshot: {model_dir}. "
+            "Pass --sam3-video-checkpoint explicitly, or use a ModelScope repo that contains the video checkpoint. "
+            "Refusing to fall back to Hugging Face because facebook/sam3 is gated."
+        )
     builder = build_sam3_video_predictor
     signature = inspect.signature(builder)
     kwargs: dict[str, Any] = {}
-    if checkpoint_path is not None:
-        for name in ("checkpoint_path", "ckpt_path", "checkpoint"):
-            if name in signature.parameters:
-                kwargs[name] = str(checkpoint_path)
-                break
-        if "load_from_HF" in signature.parameters:
-            kwargs["load_from_HF"] = False
-        if "load_from_hf" in signature.parameters:
-            kwargs["load_from_hf"] = False
+    for name in ("checkpoint_path", "ckpt_path", "checkpoint"):
+        if name in signature.parameters:
+            kwargs[name] = str(checkpoint_path)
+            break
+    if "load_from_HF" in signature.parameters:
+        kwargs["load_from_HF"] = False
+    if "load_from_hf" in signature.parameters:
+        kwargs["load_from_hf"] = False
     if "version" in signature.parameters:
         kwargs["version"] = args.sam3_video_version
     if "gpus_to_use" in signature.parameters and device.startswith("cuda"):
