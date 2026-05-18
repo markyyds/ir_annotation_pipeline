@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -14,7 +15,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from video_object_detection_mapper import common, molmopoint, sam3_candidates, sam3_tracking, siglip_selector, vlm
+from video_object_detection_mapper import common, sam3_candidates, sam3_tracking, siglip_selector, vlm
 
 
 DEFAULT_TEST_DATA = PROJECT_ROOT / "test_data"
@@ -23,6 +24,7 @@ DEFAULT_TASK_INSTRUCTION_COLUMN = "other_information.language_instruction_2"
 DEFAULT_MOLMOPOINT_MODEL = "allenai/MolmoPoint-8B"
 DEFAULT_SAM3_MODEL = "facebook/sam3.1"
 DEFAULT_SIGLIP_MODEL = "google/siglip-base-patch16-224"
+DEFAULT_MOLMOPOINT_PYTHON = PROJECT_ROOT / ".venv-molmopoint" / "bin" / "python"
 
 
 class RuntimeContext:
@@ -30,7 +32,6 @@ class RuntimeContext:
         self.np, self.torch, self.imageio, self.Image, self.ImageDraw = common.load_common_modules()
         self.device = common.auto_device(self.torch, args.device)
         self._vlm_client = None
-        self._molmopoint = None
         self._sam3_candidate = None
         self._siglip = None
         self._sam3_video = None
@@ -39,13 +40,6 @@ class RuntimeContext:
         if self._vlm_client is None:
             self._vlm_client = vlm.build_vllm_json_client(args)
         return self._vlm_client
-
-    def molmopoint(self, args):
-        key = (args.molmopoint_model, args.molmopoint_cache_dir, args.molmopoint_device_map, self.device)
-        if self._molmopoint is None or self._molmopoint[0] != key:
-            model, processor, model_dir, device_map = molmopoint.load_model_and_processor(args, self.device)
-            self._molmopoint = (key, model, processor, model_dir, device_map)
-        return self._molmopoint[1], self._molmopoint[2], self._molmopoint[3], self._molmopoint[4]
 
     def sam3_candidate(self, args):
         key = (args.sam3_candidate_model, args.sam3_candidate_cache_dir, args.sam3_candidate_torch_dtype, self.device)
@@ -148,6 +142,80 @@ def load_vlm_stage_target(vlm_stage_json: Path) -> tuple[dict[str, Any], dict[st
     return normalized_target, payload
 
 
+def write_inline_vlm_stage_json(
+    args: argparse.Namespace,
+    instruction: str,
+    target: dict[str, Any],
+    first_frame_path: Path,
+    last_frame_path: Path,
+    frame_width: int,
+    frame_height: int,
+    first_idx: int,
+    last_idx: int,
+) -> Path:
+    payload = {
+        "status": "ok",
+        "stage": "vlm_target_referring",
+        "video_path": str(args.video),
+        "parquet_path": str(args.parquet),
+        "task_instruction": instruction,
+        "vlm_model": args.vlm_model,
+        "frame_context": {
+            "first_frame_path": str(first_frame_path),
+            "last_frame_path": str(last_frame_path),
+            "first_video_frame_index": first_idx,
+            "last_video_frame_index": last_idx,
+            "width": frame_width,
+            "height": frame_height,
+        },
+        "vlm_target": target,
+        "timing_seconds": {"vlm_seconds": 0.0},
+    }
+    output_json = args.output_dir / "vlm_stage.json"
+    output_json.write_text(json.dumps(common.json_ready(payload), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return output_json
+
+
+def load_molmopoint_stage(molmopoint_stage_json: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    payload = json.loads(molmopoint_stage_json.read_text(encoding="utf-8"))
+    point_payload = payload.get("molmopoint") if isinstance(payload, dict) else None
+    if not isinstance(point_payload, dict):
+        raise RuntimeError(f"Invalid MolmoPoint stage JSON: missing molmopoint payload in {molmopoint_stage_json}")
+    if "center_xy" not in point_payload:
+        raise RuntimeError(f"Invalid MolmoPoint stage JSON: missing center_xy in {molmopoint_stage_json}")
+    point_payload = dict(point_payload)
+    point_payload["loaded_from_molmopoint_stage_json"] = str(molmopoint_stage_json)
+    return point_payload, payload
+
+
+def run_molmopoint_subprocess(args: argparse.Namespace, vlm_stage_json: Path) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    output_json = args.output_dir / "molmopoint_stage.json"
+    cmd = [
+        str(args.molmopoint_python),
+        str(SCRIPT_DIR / "run_molmopoint_stage.py"),
+        "--vlm-stage-json",
+        str(vlm_stage_json),
+        "--output-dir",
+        str(args.output_dir),
+        "--device",
+        str(args.molmopoint_device),
+        "--molmopoint-model",
+        str(args.molmopoint_model),
+        "--molmopoint-device-map",
+        str(args.molmopoint_device_map),
+        "--molmopoint-max-new-tokens",
+        str(args.molmopoint_max_new_tokens),
+        "--molmopoint-prompt-template",
+        str(args.molmopoint_prompt_template),
+    ]
+    if args.molmopoint_cache_dir is not None:
+        cmd.extend(["--molmopoint-cache-dir", str(args.molmopoint_cache_dir)])
+    cmd.append("--save-molmopoint-visualization" if args.save_molmopoint_visualization else "--no-save-molmopoint-visualization")
+    subprocess.run(cmd, check=True, cwd=str(PROJECT_ROOT))
+    point_payload, stage_payload = load_molmopoint_stage(output_json)
+    return point_payload, stage_payload, output_json
+
+
 def episode_args(base_args: argparse.Namespace, parquet_path: Path, output_root: Path) -> argparse.Namespace:
     args = argparse.Namespace(**vars(base_args))
     args.parquet = parquet_path
@@ -160,6 +228,13 @@ def episode_args(base_args: argparse.Namespace, parquet_path: Path, output_root:
             args.vlm_stage_json = candidate
         elif args.vlm_stage_root is not None:
             raise FileNotFoundError(f"Missing cached VLM stage JSON: {candidate}")
+    if args.molmopoint_stage_json is None:
+        stage_root = args.molmopoint_stage_root or output_root
+        candidate = stage_root / parquet_path.stem / "molmopoint_stage.json"
+        if candidate.exists():
+            args.molmopoint_stage_json = candidate
+        elif args.molmopoint_stage_root is not None:
+            raise FileNotFoundError(f"Missing cached MolmoPoint stage JSON: {candidate}")
     return args
 
 
@@ -191,6 +266,7 @@ def run_batch(args: argparse.Namespace) -> None:
                         "status": "ok",
                         "output_json": str(result["output_json"]),
                         "vlm_stage_json": payload.get("vlm_stage_json"),
+                        "molmopoint_stage_json": payload.get("molmopoint_stage_json"),
                         "target_object": payload["vlm_target"]["target_object"],
                         "referring_expression": payload["vlm_target"]["referring_expression"],
                         "selected_bbox_xyxy": payload.get("selected_bbox_xyxy"),
@@ -236,25 +312,32 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
         )
         timing["vlm_seconds"] = time.perf_counter() - started
 
-    molmo_model, molmo_processor, molmo_dir, molmo_device_map = context.molmopoint(args)
-    started = time.perf_counter()
-    point_payload = molmopoint.run_pointing(
-        args,
-        context.np,
-        context.torch,
-        context.Image,
-        context.ImageDraw,
-        molmo_model,
-        molmo_processor,
-        first_frame_path,
-        target["referring_expression"],
-        frame_width,
-        frame_height,
-        context.device,
-    )
-    point_payload["model_dir"] = molmo_dir
-    point_payload["device_map"] = molmo_device_map
-    timing["molmopoint_seconds"] = time.perf_counter() - started
+    molmopoint_stage_payload = None
+    if args.molmopoint_stage_json:
+        point_payload, molmopoint_stage_payload = load_molmopoint_stage(args.molmopoint_stage_json)
+        timing["molmopoint_seconds"] = 0.0
+    else:
+        vlm_stage_for_molmopoint = args.vlm_stage_json or write_inline_vlm_stage_json(
+            args,
+            instruction,
+            target,
+            first_frame_path,
+            last_frame_path,
+            frame_width,
+            frame_height,
+            first_idx,
+            last_idx,
+        )
+        if args.vlm_stage_json is None:
+            args.vlm_stage_json = vlm_stage_for_molmopoint
+        if vlm_stage_payload is None:
+            _target_from_stage, vlm_stage_payload = load_vlm_stage_target(vlm_stage_for_molmopoint)
+        started = time.perf_counter()
+        point_payload, molmopoint_stage_payload, args.molmopoint_stage_json = run_molmopoint_subprocess(
+            args,
+            vlm_stage_for_molmopoint,
+        )
+        timing["molmopoint_seconds"] = time.perf_counter() - started
 
     sam3_model, sam3_processor, sam3_model_dir = context.sam3_candidate(args)
     started = time.perf_counter()
@@ -365,6 +448,8 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
         "vlm_stage_json": str(args.vlm_stage_json) if args.vlm_stage_json else None,
         "vlm_stage_payload": vlm_stage_payload,
         "vlm_target": target,
+        "molmopoint_stage_json": str(args.molmopoint_stage_json) if args.molmopoint_stage_json else None,
+        "molmopoint_stage_payload": molmopoint_stage_payload,
         "molmopoint": point_payload,
         "sam3_candidates": {
             "model": args.sam3_candidate_model,
@@ -430,6 +515,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--vlm-timeout", type=int, default=300)
     parser.add_argument("--print-raw-response", action="store_true")
 
+    parser.add_argument(
+        "--molmopoint-python",
+        type=Path,
+        default=DEFAULT_MOLMOPOINT_PYTHON,
+        help="Python executable for the MolmoPoint environment. Defaults to .venv-molmopoint/bin/python.",
+    )
+    parser.add_argument("--molmopoint-device", default="auto", help="Device passed to the MolmoPoint subprocess.")
+    parser.add_argument("--molmopoint-stage-json", type=Path, help="Reuse a saved MolmoPoint stage output and skip the MolmoPoint subprocess.")
+    parser.add_argument(
+        "--molmopoint-stage-root",
+        type=Path,
+        help="Batch cache root containing {episode_id}/molmopoint_stage.json. Defaults to the pipeline output root.",
+    )
     parser.add_argument("--molmopoint-model", default=DEFAULT_MOLMOPOINT_MODEL)
     parser.add_argument("--molmopoint-cache-dir", type=Path)
     parser.add_argument("--molmopoint-device-map", default="auto")
