@@ -25,6 +25,7 @@ DEFAULT_MOLMOPOINT_MODEL = "allenai/MolmoPoint-8B"
 DEFAULT_SAM3_MODEL = "facebook/sam3.1"
 DEFAULT_SIGLIP_MODEL = "google/siglip-base-patch16-224"
 DEFAULT_MOLMOPOINT_PYTHON = PROJECT_ROOT / ".venv-molmopoint" / "bin" / "python"
+DEFAULT_OUTPUT_SIZE = [320, 180]
 
 
 class RuntimeContext:
@@ -83,10 +84,17 @@ def default_output_dir(vlm_model: str) -> Path:
     return DEFAULT_OUTPUT_ROOT / safe_name(vlm_model)
 
 
+def output_coordinate_size(args: argparse.Namespace, frame_width: int, frame_height: int) -> tuple[int, int]:
+    if args.output_coordinate_system == "input":
+        return frame_width, frame_height
+    return int(args.bbox_output_size[0]), int(args.bbox_output_size[1])
+
+
 def materialize_tracking_outputs(args, context: RuntimeContext, frame_records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     output_frames = []
     mask_dir = args.output_dir / "tracking_masks"
     bbox_dir = args.output_dir / "tracking_bboxes"
+    bbox_output_width, bbox_output_height = output_coordinate_size(args, args.frame_width, args.frame_height)
     reader = None
     if args.save_tracking_bbox_images:
         bbox_dir.mkdir(parents=True, exist_ok=True)
@@ -94,7 +102,18 @@ def materialize_tracking_outputs(args, context: RuntimeContext, frame_records: l
     try:
         for record in frame_records:
             frame_idx = int(record["frame_index"])
-            output_record = {"frame_index": frame_idx, "bbox_xyxy": record.get("bbox_xyxy")}
+            bbox_raw = record.get("bbox_xyxy")
+            output_record = {
+                "frame_index": frame_idx,
+                "bbox_xyxy_raw": bbox_raw,
+                "bbox_xyxy": common.scale_box(
+                    bbox_raw,
+                    args.frame_width,
+                    args.frame_height,
+                    bbox_output_width,
+                    bbox_output_height,
+                ),
+            }
             if args.save_tracking_masks:
                 mask_path = mask_dir / f"frame_{frame_idx:06d}_mask.png"
                 common.save_mask_png(context.Image, context.np, record["mask"], mask_path)
@@ -103,7 +122,7 @@ def materialize_tracking_outputs(args, context: RuntimeContext, frame_records: l
                 try:
                     image = context.Image.fromarray(reader.get_data(frame_idx)).convert("RGB")
                     draw = context.ImageDraw.Draw(image)
-                    bbox = record.get("bbox_xyxy")
+                    bbox = bbox_raw
                     if bbox is not None:
                         draw.rectangle(tuple(bbox), outline="red", width=3)
                     image_path = bbox_dir / f"frame_{frame_idx:06d}_bbox.jpg"
@@ -270,9 +289,29 @@ def run_batch(args: argparse.Namespace) -> None:
                         "target_object": payload["vlm_target"]["target_object"],
                         "referring_expression": payload["vlm_target"]["referring_expression"],
                         "selected_bbox_xyxy": payload.get("selected_bbox_xyxy"),
-                        "total_model_seconds": payload["timing_seconds"]["total_model_seconds"],
                     }
                 )
+                evaluation_summary = ((payload.get("evaluation") or {}).get("summary") or {})
+                timing_summary = payload.get("timing_seconds") or {}
+                for key in (
+                    "num_frames",
+                    "num_valid_pairs",
+                    "mean_iou",
+                    "success_rate_iou_0_5",
+                    "mean_center_distance_px",
+                    "mean_normalized_center_distance",
+                    "mean_bbox_l1_px",
+                ):
+                    record[key] = evaluation_summary.get(key)
+                for key in (
+                    "vlm_seconds",
+                    "molmopoint_seconds",
+                    "sam3_candidate_seconds",
+                    "siglip_seconds",
+                    "sam3_tracking_seconds",
+                    "total_model_seconds",
+                ):
+                    record[key] = timing_summary.get(key)
             except Exception as exc:
                 if args.stop_on_error:
                     raise
@@ -294,6 +333,9 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
         context.imageio,
         context.Image,
     )
+    args.frame_width = frame_width
+    args.frame_height = frame_height
+    bbox_output_width, bbox_output_height = output_coordinate_size(args, frame_width, frame_height)
     first_image = context.Image.open(first_frame_path).convert("RGB")
 
     vlm_stage_payload = None
@@ -406,6 +448,7 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
     selected_detection["selected_overlay_path"] = str(selected_overlay_path)
 
     tracking_payload = None
+    evaluation = None
     if args.run_tracking:
         predictor, sam3_video_metadata = context.sam3_video(args)
         started = time.perf_counter()
@@ -429,8 +472,16 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
             "num_frames": len(tracking_frames),
             "frames": tracking_frames,
         }
+        if not args.skip_evaluation:
+            raw_gt_by_frame = common.load_ground_truth_boxes(args.parquet, args.frame_column, args.gt_box_column)
+            gt_by_frame = {
+                frame_idx: common.scale_box(box, frame_width, frame_height, bbox_output_width, bbox_output_height)
+                for frame_idx, box in raw_gt_by_frame.items()
+            }
+            evaluation = common.evaluate_bboxes(tracking_frames, gt_by_frame, bbox_output_width, bbox_output_height)
 
     timing["total_model_seconds"] = sum(timing.values())
+    selected_bbox_output = common.scale_box(selected_bbox, frame_width, frame_height, bbox_output_width, bbox_output_height)
     payload = {
         "status": "ok",
         "video_path": str(args.video),
@@ -444,6 +495,9 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
             "last_video_frame_index": last_idx,
             "width": frame_width,
             "height": frame_height,
+            "bbox_output_width": bbox_output_width,
+            "bbox_output_height": bbox_output_height,
+            "output_coordinate_system": args.output_coordinate_system,
         },
         "vlm_stage_json": str(args.vlm_stage_json) if args.vlm_stage_json else None,
         "vlm_stage_payload": vlm_stage_payload,
@@ -471,8 +525,10 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
                 "point_inside": args.siglip_point_inside_weight,
             },
         },
-        "selected_bbox_xyxy": selected_bbox,
+        "selected_bbox_xyxy_raw": selected_bbox,
+        "selected_bbox_xyxy": selected_bbox_output,
         "tracking": tracking_payload,
+        "evaluation": evaluation,
         "timing_seconds": timing,
     }
     output_json = args.output_dir / "video_object_detection.json"
@@ -492,8 +548,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--single-episode", action="store_true", help="Use --video/--parquet instead of iterating --test-data.")
     parser.add_argument("--stop-on-error", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--task-instruction-column", default=DEFAULT_TASK_INSTRUCTION_COLUMN)
+    parser.add_argument("--frame-column", default="frame_index")
+    parser.add_argument("--gt-box-column", default="annotation.object_box")
     parser.add_argument("--first-video-frame-index", type=int, default=0)
     parser.add_argument("--last-video-frame-index", type=int, default=-1)
+    parser.add_argument("--output-coordinate-system", choices=("320x180", "input"), default="320x180")
+    parser.add_argument("--bbox-output-size", type=int, nargs=2, default=DEFAULT_OUTPUT_SIZE, metavar=("WIDTH", "HEIGHT"))
+    parser.add_argument("--skip-evaluation", action="store_true")
     parser.add_argument("--device", default="auto")
 
     parser.add_argument("--vlm-stage-json", type=Path, help="Reuse a saved run_vlm_stage.py output and skip the VLM request.")

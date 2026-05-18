@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import base64
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -287,6 +288,88 @@ def scale_box(box: Any, src_width: int, src_height: int, dst_width: int, dst_hei
     sx = float(dst_width) / max(1.0, float(src_width))
     sy = float(dst_height) / max(1.0, float(src_height))
     return [box[0] * sx, box[1] * sy, box[2] * sx, box[3] * sy]
+
+
+def parse_box(value: Any) -> list[float] | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or text in {"[]", "-1", "None", "nan"}:
+            return None
+        try:
+            value = ast.literal_eval(text)
+        except Exception:
+            try:
+                value = json.loads(text)
+            except Exception:
+                return None
+    if isinstance(value, (list, tuple)) and len(value) == 2 and all(isinstance(point, (list, tuple)) for point in value):
+        x1, y1 = float(value[0][0]), float(value[0][1])
+        x2, y2 = float(value[1][0]), float(value[1][1])
+        return [min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)]
+    if isinstance(value, (list, tuple)) and len(value) >= 4:
+        return [float(item) for item in value[:4]]
+    return None
+
+
+def load_ground_truth_boxes(parquet_path: Path, frame_column: str, gt_box_column: str) -> dict[int, list[float]]:
+    rows = load_rows(parquet_path)
+    boxes = {}
+    for row in rows:
+        box = parse_box(row.get(gt_box_column))
+        if box is not None:
+            boxes[int(row[frame_column])] = box
+    return boxes
+
+
+def box_iou(box_a: list[float], box_b: list[float]) -> float:
+    ax1, ay1, ax2, ay2 = box_a
+    bx1, by1, bx2, by2 = box_b
+    inter_w = max(0.0, min(ax2, bx2) - max(ax1, bx1))
+    inter_h = max(0.0, min(ay2, by2) - max(ay1, by1))
+    inter = inter_w * inter_h
+    area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+    area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
+
+def center(box: list[float]) -> tuple[float, float]:
+    return ((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
+
+
+def evaluate_bboxes(output_frames: list[dict[str, Any]], gt_by_frame: dict[int, list[float]], width: int, height: int) -> dict[str, Any]:
+    pairs = []
+    for frame in output_frames:
+        frame_idx = int(frame["frame_index"])
+        pred = frame.get("bbox_xyxy")
+        gt = scale_box(gt_by_frame.get(frame_idx), width, height, width, height)
+        if pred is None or gt is None:
+            continue
+        iou = box_iou(pred, gt)
+        pc, gc = center(pred), center(gt)
+        center_distance = math.hypot(pc[0] - gc[0], pc[1] - gc[1])
+        bbox_l1 = sum(abs(float(a) - float(b)) for a, b in zip(pred, gt)) / 4.0
+        pairs.append(
+            {
+                "frame_index": frame_idx,
+                "iou": iou,
+                "center_distance_px": center_distance,
+                "normalized_center_distance": center_distance / max(1.0, math.hypot(width, height)),
+                "bbox_l1_px": bbox_l1,
+            }
+        )
+    summary = {
+        "num_frames": len(output_frames),
+        "num_valid_pairs": len(pairs),
+        "mean_iou": sum(item["iou"] for item in pairs) / len(pairs) if pairs else None,
+        "success_rate_iou_0_5": sum(item["iou"] >= 0.5 for item in pairs) / len(pairs) if pairs else None,
+        "mean_center_distance_px": sum(item["center_distance_px"] for item in pairs) / len(pairs) if pairs else None,
+        "mean_normalized_center_distance": sum(item["normalized_center_distance"] for item in pairs) / len(pairs) if pairs else None,
+        "mean_bbox_l1_px": sum(item["bbox_l1_px"] for item in pairs) / len(pairs) if pairs else None,
+    }
+    return {"summary": summary, "frames": pairs}
 
 
 def save_mask_png(Image, np, mask: Any, output_path: Path) -> None:
