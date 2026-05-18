@@ -7,13 +7,6 @@ from typing import Any
 from video_object_detection_mapper import common
 
 
-def accepts_kwarg(signature: inspect.Signature, name: str) -> bool:
-    return name in signature.parameters or any(
-        parameter.kind == inspect.Parameter.VAR_KEYWORD
-        for parameter in signature.parameters.values()
-    )
-
-
 def find_checkpoint(model_dir: Path) -> Path | None:
     candidates = []
     for suffix in ("*.pt", "*.pth", "*.ckpt", "*.bin", "*.safetensors"):
@@ -53,29 +46,23 @@ def load_video_predictor(args, torch, device: str):
             "Refusing to fall back to Hugging Face because facebook/sam3 is gated."
         )
     builder = build_sam3_video_predictor
-    signature = inspect.signature(builder)
+    builder_signature = inspect.signature(builder)
     kwargs: dict[str, Any] = {}
-    for name in ("checkpoint_path", "ckpt_path", "checkpoint"):
-        if accepts_kwarg(signature, name):
-            kwargs[name] = str(checkpoint_path)
-            break
-    if "load_from_HF" in signature.parameters or accepts_kwarg(signature, "load_from_HF"):
-        kwargs["load_from_HF"] = False
-    if "load_from_hf" in signature.parameters or accepts_kwarg(signature, "load_from_hf"):
-        kwargs["load_from_hf"] = False
-    if accepts_kwarg(signature, "version"):
-        kwargs["version"] = args.sam3_video_version
-    if accepts_kwarg(signature, "device"):
-        kwargs["device"] = device
-    if accepts_kwarg(signature, "gpus_to_use") and device.startswith("cuda"):
+    # build_sam3_video_predictor forwards **model_kwargs into Sam3VideoPredictor.
+    # Do not pass load_from_HF/version/device here: Sam3VideoPredictor.__init__
+    # does not accept them. Passing checkpoint_path is enough to prevent the
+    # lower-level build_sam3_video_model from downloading from Hugging Face.
+    kwargs["checkpoint_path"] = str(checkpoint_path)
+    if "gpus_to_use" in builder_signature.parameters and device.startswith("cuda"):
         kwargs["gpus_to_use"] = range(torch.cuda.device_count())
-    if accepts_kwarg(signature, "compile"):
-        kwargs["compile"] = args.sam3_video_compile
-    if accepts_kwarg(signature, "warm_up"):
-        kwargs["warm_up"] = args.sam3_video_warm_up
-    if accepts_kwarg(signature, "async_loading_frames"):
-        kwargs["async_loading_frames"] = args.sam3_video_async_loading_frames
-    return builder(**kwargs), {"model_dir": str(model_dir), "checkpoint_path": str(checkpoint_path) if checkpoint_path else None, "builder_kwargs": kwargs}
+    kwargs["compile"] = args.sam3_video_compile
+    kwargs["async_loading_frames"] = args.sam3_video_async_loading_frames
+    return builder(**kwargs), {
+        "model_dir": str(model_dir),
+        "checkpoint_path": str(checkpoint_path),
+        "builder_signature": str(builder_signature),
+        "builder_kwargs": {key: str(value) if key == "gpus_to_use" else value for key, value in kwargs.items()},
+    }
 
 
 def response_outputs(response: Any) -> dict[str, Any]:
