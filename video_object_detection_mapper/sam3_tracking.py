@@ -1,187 +1,136 @@
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 from typing import Any
 
 from video_object_detection_mapper import common
 
 
-def find_checkpoint(model_dir: Path) -> Path | None:
-    candidates = []
-    for suffix in ("*.pt", "*.pth", "*.ckpt", "*.bin", "*.safetensors"):
-        candidates.extend(model_dir.rglob(suffix))
-    if not candidates:
-        return None
-
-    def priority(path: Path) -> tuple[int, int, str]:
-        name = path.name.lower()
-        score = 0
-        if "sam3" in name:
-            score += 3
-        if "sam3.1" in name or "sam31" in name:
-            score += 4
-        if "image" in name or "video" in name:
-            score += 2
-        if name.endswith((".pt", ".pth")):
-            score += 1
-        return (-score, len(path.parts), str(path))
-
-    return sorted(candidates, key=priority)[0]
-
-
-def load_video_predictor(args, torch, device: str):
+def load_video_tracker(args, torch, device: str):
     try:
-        from sam3.model_builder import build_sam3_video_predictor
+        from transformers import Sam3TrackerVideoModel, Sam3TrackerVideoProcessor
     except ImportError as exc:
         raise RuntimeError(
-            "Missing dependency 'sam3'. Install it with: python -m pip install git+https://github.com/facebookresearch/sam3.git"
+            "Missing dependency 'transformers' with Sam3TrackerVideoModel/Sam3TrackerVideoProcessor. "
+            "Install a SAM3-video-capable Transformers build in the main .venv."
         ) from exc
+
     model_dir = common.snapshot_download_model(args.sam3_video_model, args.sam3_video_cache_dir)
-    checkpoint_path = args.sam3_video_checkpoint or find_checkpoint(model_dir)
-    if checkpoint_path is None:
-        raise RuntimeError(
-            f"No local SAM3 checkpoint found in ModelScope snapshot: {model_dir}. "
-            "Pass --sam3-video-checkpoint explicitly, or use a ModelScope repo that contains the video checkpoint. "
-            "Refusing to fall back to Hugging Face because facebook/sam3 is gated."
-        )
-    builder = build_sam3_video_predictor
-    builder_signature = inspect.signature(builder)
-    kwargs: dict[str, Any] = {}
-    # build_sam3_video_predictor forwards **model_kwargs into Sam3VideoPredictor.
-    # Do not pass load_from_HF/version/device here: Sam3VideoPredictor.__init__
-    # does not accept them. Passing checkpoint_path is enough to prevent the
-    # lower-level build_sam3_video_model from downloading from Hugging Face.
-    kwargs["checkpoint_path"] = str(checkpoint_path)
-    if "gpus_to_use" in builder_signature.parameters and device.startswith("cuda"):
-        kwargs["gpus_to_use"] = range(torch.cuda.device_count())
-    kwargs["compile"] = args.sam3_video_compile
-    kwargs["async_loading_frames"] = args.sam3_video_async_loading_frames
-    return builder(**kwargs), {
+    dtype = common.torch_dtype(torch, args.sam3_video_torch_dtype)
+    model_kwargs: dict[str, Any] = {"local_files_only": True}
+    if dtype is not None:
+        model_kwargs["torch_dtype"] = dtype
+    model = Sam3TrackerVideoModel.from_pretrained(str(model_dir), **model_kwargs)
+    if dtype is not None:
+        model = model.to(device, dtype=dtype)
+    else:
+        model = model.to(device)
+    model.eval()
+    processor = Sam3TrackerVideoProcessor.from_pretrained(str(model_dir), local_files_only=True)
+    return model, processor, {
+        "model": args.sam3_video_model,
         "model_dir": str(model_dir),
-        "checkpoint_path": str(checkpoint_path),
-        "builder_signature": str(builder_signature),
-        "builder_kwargs": {key: str(value) if key == "gpus_to_use" else value for key, value in kwargs.items()},
+        "torch_dtype": args.sam3_video_torch_dtype,
+        "device": device,
+        "loader": "transformers.Sam3TrackerVideoModel",
     }
 
 
-def response_outputs(response: Any) -> dict[str, Any]:
-    if isinstance(response, dict):
-        if "outputs" in response and isinstance(response["outputs"], dict):
-            return response["outputs"]
-        return response
-    if hasattr(response, "outputs") and isinstance(response.outputs, dict):
-        return response.outputs
-    return {}
+def point_from_bbox_or_point(bbox: list[float] | None, point_xy: list[float]) -> list[float]:
+    if bbox is not None:
+        return [(float(bbox[0]) + float(bbox[2])) / 2.0, (float(bbox[1]) + float(bbox[3])) / 2.0]
+    return [float(point_xy[0]), float(point_xy[1])]
 
 
-def mask_from_outputs(np, torch, outputs: dict[str, Any], obj_id: int):
-    masks = common.tensor_to_numpy(np, torch, next((outputs[name] for name in ("out_binary_masks", "pred_masks", "masks") if name in outputs), None))
-    if masks is None:
-        return None
-    masks = np.asarray(masks)
-    if masks.ndim == 4 and masks.shape[1] == 1:
-        masks = masks[:, 0]
-    if masks.ndim == 4 and masks.shape[0] == 1:
-        masks = masks[0]
+def first_mask_from_postprocessed(np, masks: Any):
+    masks = np.asarray(masks).squeeze()
     if masks.ndim == 2:
         return masks
-    if masks.ndim < 2:
-        return None
-    obj_ids = next((outputs[name] for name in ("out_obj_ids", "obj_ids", "object_ids") if name in outputs), None)
-    if obj_ids is not None:
-        obj_ids = [int(item) for item in np.asarray(common.tensor_to_numpy(np, torch, obj_ids)).reshape(-1).tolist()]
-        if obj_id in obj_ids:
-            return masks[obj_ids.index(obj_id)]
-    return masks[0]
+    if masks.ndim >= 3:
+        return masks.reshape((-1,) + masks.shape[-2:])[0]
+    return None
 
 
-def normalized_point_from_bbox(bbox: list[float], frame_width: int, frame_height: int) -> list[float]:
-    cx = (float(bbox[0]) + float(bbox[2])) / 2.0
-    cy = (float(bbox[1]) + float(bbox[3])) / 2.0
-    return [cx / max(1.0, float(frame_width)), cy / max(1.0, float(frame_height))]
-
-
-def prompt_variants(torch, bbox: list[float], mask: Any | None, point_xy: list[float], frame_width: int, frame_height: int) -> list[tuple[str, dict[str, Any]]]:
-    variants: list[tuple[str, dict[str, Any]]] = []
-    if mask is not None:
-        variants.append(("mask", {"mask": torch.as_tensor(mask).bool()}))
-    if bbox is not None:
-        norm_box = [
-            float(bbox[0]) / max(1.0, float(frame_width)),
-            float(bbox[1]) / max(1.0, float(frame_height)),
-            float(bbox[2]) / max(1.0, float(frame_width)),
-            float(bbox[3]) / max(1.0, float(frame_height)),
-        ]
-        variants.append(("bbox", {"box": torch.tensor(norm_box, dtype=torch.float32)}))
-        norm_point = normalized_point_from_bbox(bbox, frame_width, frame_height)
-    else:
-        norm_point = [float(point_xy[0]) / max(1.0, float(frame_width)), float(point_xy[1]) / max(1.0, float(frame_height))]
-    variants.append(
-        (
-            "point",
-            {
-                "points": torch.tensor([norm_point], dtype=torch.float32),
-                "point_labels": torch.tensor([1], dtype=torch.int32),
-            },
-        )
-    )
-    return variants
+def postprocess_output_mask(np, processor, inference_session, output, binarize: bool):
+    processed = processor.post_process_masks(
+        [output.pred_masks],
+        original_sizes=[[inference_session.video_height, inference_session.video_width]],
+        binarize=binarize,
+    )[0]
+    return first_mask_from_postprocessed(np, processed)
 
 
 def track_video(
     np,
     torch,
-    predictor,
+    model,
+    processor,
     video_path: Path,
-    bbox: list[float],
+    bbox: list[float] | None,
     mask: Any | None,
     point_xy: list[float],
     frame_width: int,
     frame_height: int,
     obj_id: int,
+    device: str,
+    dtype_name: str,
+    binarize: bool,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    if not hasattr(predictor, "handle_request"):
-        raise RuntimeError("SAM3 predictor does not expose handle_request; cannot run video tracking.")
+    import transformers
 
-    last_error = None
-    for prompt_type, prompt_payload in prompt_variants(torch, bbox, mask, point_xy, frame_width, frame_height):
-        session_response = predictor.handle_request(request=dict(type="start_session", resource_path=str(video_path)))
-        session_id = session_response["session_id"] if isinstance(session_response, dict) else session_response.session_id
-        try:
-            add_response = predictor.handle_request(
-                request=dict(
-                    type="add_prompt",
-                    session_id=session_id,
-                    frame_index=0,
-                    obj_id=int(obj_id),
-                    **prompt_payload,
-                )
+    dtype = common.torch_dtype(torch, dtype_name)
+    video_frames, _metadata = transformers.video_utils.load_video(str(video_path))
+    inference_session = processor.init_video_session(
+        video=video_frames,
+        inference_device=device,
+        dtype=dtype,
+    )
+
+    prompt_point = point_from_bbox_or_point(bbox, point_xy)
+    processor.add_inputs_to_inference_session(
+        inference_session=inference_session,
+        frame_idx=0,
+        obj_ids=int(obj_id),
+        input_points=[[[[float(prompt_point[0]), float(prompt_point[1])]]]],
+        input_labels=[[[1]]],
+    )
+
+    frame_records: list[dict[str, Any]] = []
+    autocast_context = torch.autocast("cuda", dtype=dtype) if device.startswith("cuda") and dtype is not None else common.null_context()
+    seen: set[int] = set()
+    with torch.inference_mode(), autocast_context:
+        initial_output = model(inference_session=inference_session, frame_idx=0)
+        initial_mask = postprocess_output_mask(np, processor, inference_session, initial_output, binarize)
+        if initial_mask is not None:
+            frame_records.append(
+                {
+                    "frame_index": 0,
+                    "mask": initial_mask,
+                    "bbox_xyxy": common.mask_to_bbox(np, initial_mask),
+                }
             )
-            add_outputs = response_outputs(add_response)
-            frame_records = []
-            add_mask = mask_from_outputs(np, torch, add_outputs, obj_id)
-            if add_mask is not None:
-                frame_records.append({"frame_index": 0, "mask": add_mask, "bbox_xyxy": common.mask_to_bbox(np, add_mask)})
+            seen.add(0)
 
-            stream = predictor.handle_stream_request(request=dict(type="propagate_in_video", session_id=session_id))
-            seen = {0} if add_mask is not None else set()
-            for fallback_frame_idx, response in enumerate(stream):
-                outputs = response_outputs(response)
-                frame_idx = int(outputs.get("frame_index") or outputs.get("frame_idx") or fallback_frame_idx)
-                if frame_idx in seen:
-                    continue
-                out_mask = mask_from_outputs(np, torch, outputs, obj_id)
-                if out_mask is None:
-                    continue
-                frame_records.append({"frame_index": frame_idx, "mask": out_mask, "bbox_xyxy": common.mask_to_bbox(np, out_mask)})
-                seen.add(frame_idx)
-            return sorted(frame_records, key=lambda item: item["frame_index"]), {"tracking_prompt_type": prompt_type}
-        except Exception as exc:
-            last_error = exc
-        finally:
-            try:
-                predictor.handle_request(request=dict(type="close_session", session_id=session_id))
-            except Exception:
-                pass
-    raise RuntimeError(f"SAM3 tracking failed for mask, bbox, and point prompts. Last error: {last_error}")
+        for fallback_frame_idx, output in enumerate(model.propagate_in_video_iterator(inference_session)):
+            frame_idx = int(getattr(output, "frame_idx", fallback_frame_idx))
+            if frame_idx in seen:
+                continue
+            out_mask = postprocess_output_mask(np, processor, inference_session, output, binarize)
+            if out_mask is None:
+                continue
+            frame_records.append(
+                {
+                    "frame_index": frame_idx,
+                    "mask": out_mask,
+                    "bbox_xyxy": common.mask_to_bbox(np, out_mask),
+                }
+            )
+            seen.add(frame_idx)
+
+    return sorted(frame_records, key=lambda item: item["frame_index"]), {
+        "tracking_prompt_type": "point_from_selected_bbox" if bbox is not None else "molmopoint",
+        "tracking_prompt_point_xy": prompt_point,
+        "tracking_prompt_obj_id": int(obj_id),
+        "tracking_uses_selected_mask_as_prompt": False,
+        "tracking_note": "Sam3TrackerVideoProcessor API currently uses point prompts here; selected mask/bbox are used to choose the point.",
+    }

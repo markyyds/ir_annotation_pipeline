@@ -60,14 +60,13 @@ class RuntimeContext:
         key = (
             args.sam3_video_model,
             args.sam3_video_cache_dir,
-            args.sam3_video_checkpoint,
-            args.sam3_video_version,
+            args.sam3_video_torch_dtype,
             self.device,
         )
         if self._sam3_video is None or self._sam3_video[0] != key:
-            predictor, metadata = sam3_tracking.load_video_predictor(args, self.torch, self.device)
-            self._sam3_video = (key, predictor, metadata)
-        return self._sam3_video[1], self._sam3_video[2]
+            model, processor, metadata = sam3_tracking.load_video_tracker(args, self.torch, self.device)
+            self._sam3_video = (key, model, processor, metadata)
+        return self._sam3_video[1], self._sam3_video[2], self._sam3_video[3]
 
 
 def safe_name(value: str) -> str:
@@ -450,12 +449,13 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
     tracking_payload = None
     evaluation = None
     if args.run_tracking:
-        predictor, sam3_video_metadata = context.sam3_video(args)
+        sam3_video_model, sam3_video_processor, sam3_video_metadata = context.sam3_video(args)
         started = time.perf_counter()
         frame_records, tracking_metadata = sam3_tracking.track_video(
             context.np,
             context.torch,
-            predictor,
+            sam3_video_model,
+            sam3_video_processor,
             args.video,
             selected_bbox,
             selected_mask,
@@ -463,6 +463,9 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
             frame_width,
             frame_height,
             args.sam3_video_obj_id,
+            context.device,
+            args.sam3_video_torch_dtype,
+            args.sam3_video_binarize,
         )
         tracking_frames = materialize_tracking_outputs(args, context, frame_records)
         timing["sam3_tracking_seconds"] = time.perf_counter() - started
@@ -618,12 +621,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-tracking", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--sam3-video-model", default=DEFAULT_SAM3_MODEL)
     parser.add_argument("--sam3-video-cache-dir", type=Path)
-    parser.add_argument("--sam3-video-checkpoint", type=Path)
-    parser.add_argument("--sam3-video-version", default="3")
+    parser.add_argument("--sam3-video-torch-dtype", choices=("auto", "fp32", "fp16", "bf16"), default="bf16")
+    parser.add_argument("--sam3-video-binarize", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--sam3-video-obj-id", type=int, default=0)
-    parser.add_argument("--sam3-video-compile", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--sam3-video-warm-up", action=argparse.BooleanOptionalAction, default=False)
-    parser.add_argument("--sam3-video-async-loading-frames", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--save-tracking-masks", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--save-tracking-bbox-images", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
