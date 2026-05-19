@@ -22,16 +22,22 @@ DEFAULT_OUTPUT_ROOT = SCRIPT_DIR / "outputs"
 DEFAULT_TASK_INSTRUCTION_COLUMN = "other_information.language_instruction_2"
 
 
+def print_timer(stage: str, seconds: float) -> None:
+    print(f"[timer] {stage}: {seconds:.3f}s", flush=True)
+
+
 def run_vlm_stage(args: argparse.Namespace) -> dict:
     _np, _torch, imageio, Image, _ImageDraw = common.load_common_modules()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     task_instruction = common.get_task_instruction(args.parquet, args.task_instruction_column)
+    started = time.perf_counter()
     first_frame_path, last_frame_path, frame_width, frame_height, first_idx, last_idx = common.save_context_frames(
         args,
         imageio,
         Image,
     )
+    print_timer("context_frames", time.perf_counter() - started)
 
     started = time.perf_counter()
     target = vlm.extract_target_and_referring_expression(
@@ -43,6 +49,7 @@ def run_vlm_stage(args: argparse.Namespace) -> dict:
         frame_height,
     )
     timing = {"vlm_seconds": time.perf_counter() - started}
+    print_timer("vlm", timing["vlm_seconds"])
 
     payload = {
         "status": "ok",

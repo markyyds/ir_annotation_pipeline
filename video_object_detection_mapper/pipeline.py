@@ -83,6 +83,11 @@ def default_output_dir(vlm_model: str) -> Path:
     return DEFAULT_OUTPUT_ROOT / safe_name(vlm_model)
 
 
+def print_timer(stage: str, seconds: float, note: str | None = None) -> None:
+    suffix = f" ({note})" if note else ""
+    print(f"[timer] {stage}: {seconds:.3f}s{suffix}", flush=True)
+
+
 def output_coordinate_size(args: argparse.Namespace, frame_width: int, frame_height: int) -> tuple[int, int]:
     if args.output_coordinate_system == "input":
         return frame_width, frame_height
@@ -327,11 +332,13 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
     timing: dict[str, float] = {}
 
     instruction = common.get_task_instruction(args.parquet, args.task_instruction_column)
+    started = time.perf_counter()
     first_frame_path, last_frame_path, frame_width, frame_height, first_idx, last_idx = common.save_context_frames(
         args,
         context.imageio,
         context.Image,
     )
+    print_timer("context_frames", time.perf_counter() - started)
     args.frame_width = frame_width
     args.frame_height = frame_height
     bbox_output_width, bbox_output_height = output_coordinate_size(args, frame_width, frame_height)
@@ -341,6 +348,7 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
     if args.vlm_stage_json:
         target, vlm_stage_payload = load_vlm_stage_target(args.vlm_stage_json)
         timing["vlm_seconds"] = 0.0
+        print_timer("vlm", 0.0, f"cached {args.vlm_stage_json}")
     else:
         started = time.perf_counter()
         target = vlm.extract_target_and_referring_expression(
@@ -352,11 +360,13 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
             frame_height,
         )
         timing["vlm_seconds"] = time.perf_counter() - started
+        print_timer("vlm", timing["vlm_seconds"])
 
     molmopoint_stage_payload = None
     if args.molmopoint_stage_json:
         point_payload, molmopoint_stage_payload = load_molmopoint_stage(args.molmopoint_stage_json)
         timing["molmopoint_seconds"] = 0.0
+        print_timer("molmopoint", 0.0, f"cached {args.molmopoint_stage_json}")
     else:
         vlm_stage_for_molmopoint = args.vlm_stage_json or write_inline_vlm_stage_json(
             args,
@@ -379,8 +389,11 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
             vlm_stage_for_molmopoint,
         )
         timing["molmopoint_seconds"] = time.perf_counter() - started
+        print_timer("molmopoint", timing["molmopoint_seconds"])
 
+    started = time.perf_counter()
     sam3_model, sam3_processor, sam3_model_dir = context.sam3_candidate(args)
+    print_timer("sam3_candidate_load", time.perf_counter() - started)
     started = time.perf_counter()
     masks, scores, sam3_prompt_metadata = sam3_candidates.run_point_prompt(
         args,
@@ -405,8 +418,11 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
     visible_masks = masks[: args.sam3_candidate_max_masks]
     visible_scores = scores[: args.sam3_candidate_max_masks]
     timing["sam3_candidate_seconds"] = time.perf_counter() - started
+    print_timer("sam3_candidate", timing["sam3_candidate_seconds"])
 
+    started = time.perf_counter()
     siglip_model, siglip_processor = context.siglip(args)
+    print_timer("siglip_load", time.perf_counter() - started)
     started = time.perf_counter()
     candidate_rankings, selected_detection = siglip_selector.rank_candidates(
         args,
@@ -424,6 +440,7 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
         context.device,
     )
     timing["siglip_seconds"] = time.perf_counter() - started
+    print_timer("siglip", timing["siglip_seconds"])
     if selected_detection is None:
         raise RuntimeError("SigLIP did not select a valid SAM3 candidate mask.")
 
@@ -449,7 +466,9 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
     tracking_payload = None
     evaluation = None
     if args.run_tracking:
+        started = time.perf_counter()
         sam3_video_model, sam3_video_processor, sam3_video_metadata = context.sam3_video(args)
+        print_timer("sam3_video_load", time.perf_counter() - started)
         started = time.perf_counter()
         frame_records, tracking_metadata = sam3_tracking.track_video(
             context.np,
@@ -469,6 +488,7 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
         )
         tracking_frames = materialize_tracking_outputs(args, context, frame_records)
         timing["sam3_tracking_seconds"] = time.perf_counter() - started
+        print_timer("sam3_tracking", timing["sam3_tracking_seconds"])
         tracking_payload = {
             **sam3_video_metadata,
             **tracking_metadata,
@@ -476,14 +496,19 @@ def run_pipeline(args: argparse.Namespace, context: RuntimeContext | None = None
             "frames": tracking_frames,
         }
         if not args.skip_evaluation:
+            started = time.perf_counter()
             raw_gt_by_frame = common.load_ground_truth_boxes(args.parquet, args.frame_column, args.gt_box_column)
             gt_by_frame = {
                 frame_idx: common.scale_box(box, frame_width, frame_height, bbox_output_width, bbox_output_height)
                 for frame_idx, box in raw_gt_by_frame.items()
             }
             evaluation = common.evaluate_bboxes(tracking_frames, gt_by_frame, bbox_output_width, bbox_output_height)
+            print_timer("evaluation", time.perf_counter() - started)
+    else:
+        print_timer("sam3_tracking", 0.0, "disabled")
 
     timing["total_model_seconds"] = sum(timing.values())
+    print_timer("total_model", timing["total_model_seconds"])
     selected_bbox_output = common.scale_box(selected_bbox, frame_width, frame_height, bbox_output_width, bbox_output_height)
     payload = {
         "status": "ok",

@@ -18,6 +18,10 @@ from video_object_detection_mapper import common, molmopoint
 DEFAULT_MOLMOPOINT_MODEL = "allenai/MolmoPoint-8B"
 
 
+def print_timer(stage: str, seconds: float) -> None:
+    print(f"[timer] {stage}: {seconds:.3f}s", flush=True)
+
+
 def load_vlm_stage(vlm_stage_json: Path) -> tuple[dict, dict]:
     payload = json.loads(vlm_stage_json.read_text(encoding="utf-8"))
     target = payload.get("vlm_target") if isinstance(payload, dict) else None
@@ -54,7 +58,9 @@ def run_molmopoint_stage(args: argparse.Namespace) -> dict:
     width = int(frame_context["width"])
     height = int(frame_context["height"])
 
+    started = time.perf_counter()
     model, processor, model_dir, device_map = molmopoint.load_model_and_processor(args, device)
+    print_timer("molmopoint_load", time.perf_counter() - started)
     started = time.perf_counter()
     point_payload = molmopoint.run_pointing(
         args,
@@ -71,6 +77,7 @@ def run_molmopoint_stage(args: argparse.Namespace) -> dict:
         device,
     )
     timing = {"molmopoint_seconds": time.perf_counter() - started}
+    print_timer("molmopoint", timing["molmopoint_seconds"])
     point_payload["model_dir"] = model_dir
     point_payload["device_map"] = device_map
 
